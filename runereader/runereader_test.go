@@ -21,7 +21,7 @@ func TestPeekRune(t *testing.T) {
 	const bufsize = 4096
 
 	for _, string := range samples {
-		reader := NewRuneReader(bufio.NewReaderSize(strings.NewReader(string), bufsize))
+		reader := NewReader(bufio.NewReaderSize(strings.NewReader(string), bufsize))
 		allRunes := []rune(string)
 
 		assert(len(allRunes) == utf8.RuneCountInString(string), "I don't understand strings in go")

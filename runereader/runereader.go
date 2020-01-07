@@ -7,22 +7,22 @@ import (
 	"unicode/utf8"
 )
 
-type RuneReader struct {
+type Reader struct {
 	*bufio.Reader
 }
 
-func NewRuneReader(r io.Reader) *RuneReader {
+func NewReader(r io.Reader) *Reader {
 	// hum... really, all I care about is the peek method
 	if bufr, ok := r.(*bufio.Reader); ok {
-		return &RuneReader{bufr}
+		return &Reader{bufr}
 	}
-	return &RuneReader{bufio.NewReader(r)}
+	return &Reader{bufio.NewReader(r)}
 }
 
 // PeekRunes peeks at the next n runes. If an error occurs, then []runes
 // will contain all the runes that were succesfully loaded before the error
 // occured
-func (r *RuneReader) PeekRunes(n int) ([]rune, error) {
+func (r *Reader) PeekRunes(n int) ([]rune, error) {
 	if n < 0 {
 		return nil, bufio.ErrNegativeCount
 	}

@@ -21,7 +21,7 @@ func TestAddCommas(t *testing.T) {
 		},
 		{
 			in: `["a" 2 4
-			{"nested": "keys" 
+			{"nested": "keys"
 				"weird":"whitespace"}
 			["still" "works"]]`,
 			out: `["a", 2, 4,
@@ -75,7 +75,7 @@ func TestAddCommas(t *testing.T) {
 			in: `{"hello": "world"
 			"oops": ["nested"
 			 "keys" "inline"]}`,
-			out: `{"hello": "world"
+			out: `{"hello": "world",
 			"oops": ["nested",
 			 "keys", "inline"]}`,
 		},
@@ -96,7 +96,7 @@ func TestAddCommas(t *testing.T) {
 
 		actual_str := actual.String()
 		if actual_str != row.out {
-			t.Errorf("in: %s\nactual:   %s\nexpected: %s", row.in, actual_str, row.out)
+			t.Errorf("in: %q\nactual:   %q\nexpected: %q", row.in, actual_str, row.out)
 		}
 
 	}
