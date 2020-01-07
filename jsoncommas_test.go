@@ -1,14 +1,14 @@
 package main
 
 import (
-	"testing"
 	"bytes"
 	"strings"
+	"testing"
 )
 
 func TestAddCommas(t *testing.T) {
-	table := []struct{
-		in string
+	table := []struct {
+		in  string
 		out string
 	}{
 		{
@@ -20,7 +20,7 @@ func TestAddCommas(t *testing.T) {
 			out: `{ "hello": 2, "oops": "test" }`,
 		},
 		{
-			in:  `["a" 2 4
+			in: `["a" 2 4
 			{"nested": "keys" 
 				"weird":"whitespace"}
 			["still" "works"]]`,
@@ -30,7 +30,7 @@ func TestAddCommas(t *testing.T) {
 			["still", "works"]]`,
 		},
 		{
-			in:  `["a" 2 4
+			in: `["a" 2 4
 			// with comments!
 			{"nested": "keys" // kind of cool
 				"weird":"whitespace"}
@@ -46,20 +46,36 @@ func TestAddCommas(t *testing.T) {
 			]`,
 		},
 		{
+			in: `["a" 2 4
+			// with comments!
+			{"nested": "keys" // kind of cool
+				"weird":"whitespace, and sneaky [1 2]"}
+			["still" "works"]
+			// i like it
+			]`,
+			out: `["a", 2, 4,
+			// with comments!
+			{"nested": "keys", // kind of cool
+				"weird":"whitespace, and sneaky [1 2]"},
+			["still", "works"]
+			// i like it
+			]`,
+		},
+		{
 			in:  `{"hello": "world" "oops": "world"}`,
 			out: `{"hello": "world", "oops": "world"}`,
 		},
 		{
-			in:  `{"hello": "world"
+			in: `{"hello": "world"
 			"oops": "world"}`,
 			out: `{"hello": "world",
 			"oops": "world"}`,
 		},
 		{
-			in:  `{"hello": "world"
+			in: `{"hello": "world"
 			"oops": ["nested"
 			 "keys" "inline"]}`,
-			out:  `{"hello": "world"
+			out: `{"hello": "world"
 			"oops": ["nested",
 			 "keys", "inline"]}`,
 		},
@@ -74,7 +90,7 @@ func TestAddCommas(t *testing.T) {
 		var actual bytes.Buffer
 		actual.Grow(len(row.out))
 
-		if err := AddCommas(config, strings.NewReader(row.in), &actual); err != nil {
+		if _, err := AddCommas(config, strings.NewReader(row.in), &actual); err != nil {
 			t.Errorf("in: %s, err: %s", row.in, err)
 		}
 
@@ -87,3 +103,4 @@ func TestAddCommas(t *testing.T) {
 }
 
 // TODO: fuzz (make it's parsable json, pass through AddComma, and make sure you get equivalent json out)
+// TODO: fuzz random stuff and make sure that the len(out) >= len(in), and diff is only commas
