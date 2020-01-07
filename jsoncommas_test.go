@@ -90,7 +90,7 @@ func TestAddCommas(t *testing.T) {
 		var actual bytes.Buffer
 		actual.Grow(len(row.out))
 
-		if _, err := AddCommas(config, strings.NewReader(row.in), &actual); err != nil {
+		if _, err := Fix(config, strings.NewReader(row.in), &actual); err != nil {
 			t.Errorf("in: %s, err: %s", row.in, err)
 		}
 

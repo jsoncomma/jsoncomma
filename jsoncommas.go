@@ -18,20 +18,21 @@ type Fixer struct {
 	in     *bufio.Reader
 	out    *bufio.Writer
 
-	n int
+	n               int
+	lastSignificant rune
 }
 
-func (f *Fixer) WriteByte(b byte) error {
-	err := f.out.WriteByte(b)
+func (f *Fixer) WriteRune(b rune) error {
+	n, err := f.out.WriteRune(b)
 	if err != nil {
 		return err
 	}
-	f.n += 1
+	f.n += n
 	return nil
 }
 
-func (f *Fixer) Write(b []byte) error {
-	n, err := f.out.Write(b)
+func (f *Fixer) Write(b string) error {
+	n, err := f.out.WriteString(b)
 	if err != nil {
 		return err
 	}
@@ -42,36 +43,59 @@ func (f *Fixer) Write(b []byte) error {
 // consumeString reads the entire string and writes it to out, untouched.
 // It handles backslashes (\")
 func (f *Fixer) consumeString() error {
-	var bytes []byte
+	var string []byte
 	var err error
 
-	for len(bytes) == 0 || bytes[len(bytes)-2] == '\\' {
-		bytes, err = f.in.ReadBytes('"')
+	for len(string) == 0 || string[len(string)-2] == '\\' {
+		string, err = f.in.ReadString('"')
 		if err != nil {
 			return err
 		}
-		if err := f.Write(bytes); err != nil {
+		if err := f.Write(string); err != nil {
 			return err
 		}
 
-		assert(len(bytes) >= 2, "len bytes should be greater than 2, got %d in %q", len(bytes), bytes)
+		assert(len(string) >= 2, "len string should be greater than 2, got %d in %q", len(string), string)
 	}
 	return nil
 }
 
 func (f *Fixer) consumeComment() error {
-	var bytes []byte
+	var string string
 	var err error
 
 	// FIXME: better handling of different line endings
-	bytes, err = f.in.ReadBytes('\n')
+	string, err = f.in.ReadString('\n')
 	if err != nil {
 		return err
 	}
-	if err := f.Write(bytes); err != nil {
+	if err := f.Write(string); err != nil {
 		return err
 	}
 	return nil
+
+}
+
+func isStart(b rune) bool {
+	// f for false, t for true, n for null
+	return b == '"' || b == '{' || b == '[' || (b >= '0' && b <= '9') || b == 'f' || b == 't' || b == 'n'
+}
+
+func isEnd(b rune) bool {
+	// this is a bit dodgy. the 'e' is for false and true, the 'l' is for null
+	return b == '"' || b == '}' || b == ']' || (b >= '0' && b <= '9') || b == 'e' || b == 'l'
+}
+
+func (f *Fixer) insertComma(lastSignificant rune) error {
+	if !isEnd(lastSignificant) {
+		return nil
+	}
+	bytes, err := f.in.Peek(1)
+	if err != nil {
+		return err
+	}
+
+	f.Write(',')
 
 }
 
@@ -82,20 +106,22 @@ func (f *Fixer) Fix() error {
 		// after a comment, consume the whole thing
 		// within a string, consume the whole thing
 
-		byte, err := f.in.ReadByte()
+		rune, _, err := f.in.ReadRune()
 		if err != nil {
 			return err
 		}
 
-		if err := f.WriteByte(byte); err != nil {
-			return err
-		}
-
-		if byte == '"' {
+		if rune == '"' {
+			if err := f.WriteRune(rune); err != nil {
+				return err
+			}
 			if err := f.consumeString(); err != nil {
 				return err
 			}
-		} else if byte == '/' {
+		} else if rune == '/' {
+			if err := f.WriteRune(rune); err != nil {
+				return err
+			}
 			next, err := f.in.Peek(1)
 			if err != nil {
 				return err
@@ -110,6 +136,10 @@ func (f *Fixer) Fix() error {
 			// otherwise, don't do anything. We just peeked at the next
 			// character, it's going to be consumed automatically
 			// by something else
+		} else {
+			if err := f.WriteRune(rune); err != nil {
+				return err
+			}
 		}
 
 	}
