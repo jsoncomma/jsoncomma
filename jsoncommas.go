@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"fmt"
 	"io"
 	"unicode"
 )
@@ -49,16 +51,18 @@ func (f *Fixer) consumeString() error {
 
 	for len(bytes) == 0 || bytes[len(bytes)-2] == '\\' {
 		bytes, err = f.in.ReadBytes('"')
-		if err != nil {
+		if err := f.Write(bytes); err != nil {
 			return err
 		}
-		if err := f.Write(bytes); err != nil {
+		if err != nil {
 			return err
 		}
 
 		assert(len(bytes) >= 2, "len bytes should be greater than 2, got %d in %q", len(bytes), bytes)
 	}
-	f.insertComma('"')
+	if err := f.insertComma('"'); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -69,10 +73,10 @@ func (f *Fixer) consumeComment() error {
 
 	// FIXME: better handling of different line endings
 	bytes, err = f.in.ReadBytes('\n')
-	if err != nil {
+	if err := f.Write(bytes); err != nil {
 		return err
 	}
-	if err := f.Write(bytes); err != nil {
+	if err != nil {
 		return err
 	}
 	return nil
@@ -94,19 +98,72 @@ func (f *Fixer) insertComma(lastSignificant byte) error {
 		return nil
 	}
 
+	// we can't peek, because we can only peek n bytes where n < buffer size
+	// so if someone has a really long comment, then this will break
+	// so, we read into a buffer *without writting to f.out*, and if we detect
+	// that we need to insert a comma, then we f.out.Write and *then* f.out.Write
+	// the buffer
+
+	var bytesRead bytes.Buffer
 	var next byte = ' '
-	i := 0
-	for unicode.IsSpace(rune(next)) {
-		bytes, err := f.in.Peek(i + 1)
+	// here, we have to ignore spaces and comments, in a loop because you can
+	// have whitespace, comment, whitespace, comment, etc...
+	for {
+		for {
+			b, err := f.in.ReadByte()
+			if err != nil {
+				return err
+			}
+			next = b
+			if !unicode.IsSpace(rune(next)) {
+				if err := f.in.UnreadByte(); err != nil {
+					return fmt.Errorf("unreading byte: %s", err)
+				}
+				break
+			}
+			if err := bytesRead.WriteByte(b); err != nil {
+				return fmt.Errorf("writting to internal buffer: %s", err)
+			}
+		}
+		if next != '/' {
+			break
+		}
+		peek, err := f.in.Peek(1)
 		if err != nil {
 			return err
 		}
-		next = bytes[i]
-		i += 1
+		if peek[0] != '/' {
+			// we don't actually have a comment
+			break
+		}
+
+		// consume the comment
+		// we can't use consume comment, because it writes to the buffer
+		bytes, err := f.in.ReadBytes('\n')
+		if err != nil {
+			return err
+		}
+		written, err := bytesRead.Write(bytes)
+		if err != nil {
+			return fmt.Errorf("writing to internal buffer: %s", err)
+		}
+		if written != len(bytes) {
+			return fmt.Errorf("writing to internal buffer: wrote %d bytes, expected %d", written, len(bytes))
+		}
+
 	}
 
 	if isStart(next) {
 		f.WriteByte(',')
+	}
+
+	shouldWrite := int64(bytesRead.Len())
+	written, err := f.out.ReadFrom(&bytesRead)
+	if err != nil {
+		return fmt.Errorf("writing from internal buffer: %s", err)
+	}
+	if written != shouldWrite {
+		return fmt.Errorf("writing from internal buffer: wrote %d bytes, expected %d", written, shouldWrite)
 	}
 
 	return nil
@@ -120,21 +177,18 @@ func (f *Fixer) Fix() error {
 		// within a string, consume the whole thing
 
 		byte, err := f.in.ReadByte()
+		if err := f.WriteByte(byte); err != nil {
+			return err
+		}
 		if err != nil {
 			return err
 		}
 
 		if byte == '"' {
-			if err := f.WriteByte(byte); err != nil {
-				return err
-			}
 			if err := f.consumeString(); err != nil {
 				return err
 			}
 		} else if byte == '/' {
-			if err := f.WriteByte(byte); err != nil {
-				return err
-			}
 			next, err := f.in.Peek(1)
 			if err != nil {
 				return err
@@ -150,14 +204,12 @@ func (f *Fixer) Fix() error {
 			// character, it's going to be consumed automatically
 			// by something else
 		} else {
-			if err := f.WriteByte(byte); err != nil {
+			if err := f.insertComma(byte); err != nil {
 				return err
 			}
-			f.insertComma(byte)
 		}
 
 	}
-	return nil
 }
 
 func (f *Fixer) Written() int {
@@ -184,6 +236,5 @@ func Fix(config *Config, in io.Reader, out io.Writer) (int, error) {
 	if err != nil {
 		return n, err
 	}
-	err = f.Flush()
-	return n, err
+	return n, f.Flush()
 }

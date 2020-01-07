@@ -96,7 +96,7 @@ func TestAddCommas(t *testing.T) {
 
 		actual_str := actual.String()
 		if actual_str != row.out {
-			t.Errorf("in: %q\nactual:   %q\nexpected: %q", row.in, actual_str, row.out)
+			t.Errorf("in: %#q\nactual:   %#q\nexpected: %#q", row.in, actual_str, row.out)
 		}
 
 	}
