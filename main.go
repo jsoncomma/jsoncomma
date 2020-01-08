@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	jsoncomma "github.com/math2001/jsoncomma/internals"
 )
@@ -88,4 +89,15 @@ func respondJSON(w http.ResponseWriter, code int, obj kv) {
 	if err != nil {
 		log.Printf("respond json: %s", err)
 	}
+}
+
+func localtest() {
+	reader := strings.NewReader(`{
+		"hello": "world"
+		"this": "is"
+
+		"a": "[1 2 ] test"
+	}`)
+
+	fmt.Println(jsoncomma.Fix(&jsoncomma.Config{}, reader, os.Stdout))
 }

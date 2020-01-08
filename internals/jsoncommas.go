@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"sync"
 	"unicode"
 )
 
@@ -280,6 +281,17 @@ func (f *Fixer) Flush() error {
 	return f.out.Flush()
 }
 
+var readersPool = sync.Pool{
+	New: func() interface{} {
+		return bufio.NewReader(nil)
+	},
+}
+var writersPool = sync.Pool{
+	New: func() interface{} {
+		return bufio.NewWriter(nil)
+	},
+}
+
 // Fix writes everything from in to out, just adding commas where needed
 // returns the number of bytes written, and error
 func Fix(config *Config, in io.Reader, out io.Writer) (int64, error) {
@@ -295,10 +307,28 @@ func Fix(config *Config, in io.Reader, out io.Writer) (int64, error) {
 		logger = log.New(config.Logs, "", log.LstdFlags)
 	}
 
+	var bufin *bufio.Reader
+	var bufout *bufio.Writer
+
+	var ok bool
+	if bufin, ok = in.(*bufio.Reader); !ok {
+		bufin = readersPool.Get().(*bufio.Reader)
+		bufin.Reset(in)
+	}
+	if bufout, ok = out.(*bufio.Writer); !ok {
+		bufout = writersPool.Get().(*bufio.Writer)
+		bufout.Reset(out)
+	}
+
+	defer func() {
+		readersPool.Put(bufin)
+		writersPool.Put(bufout)
+	}()
+
 	f := &Fixer{
 		config: config,
-		in:     bufio.NewReader(in),
-		out:    bufio.NewWriter(out),
+		in:     bufin,
+		out:    bufout,
 
 		log: logger,
 	}
