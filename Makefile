@@ -2,14 +2,14 @@
 
 GOFILES=$(shell fd --extension go)
 
-test: $(GOFILES)
-	goimports -w .
-	go test ./...
-
 run: $(GOFILES)
 	goimports -w .
 	go build
 	./jsoncomma
+
+test: $(GOFILES)
+	goimports -w .
+	go test ./...
 
 fuzzing_workdir/jsoncomma.zip: $(GOFILES)
 	go-fuzz-build -o fuzzing_workdir/jsoncomma.zip ./internals

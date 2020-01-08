@@ -27,6 +27,11 @@ func TestAddCommas(t *testing.T) {
 			trailling: `{ "hello": 2, "oops": "test", }`,
 		},
 		{
+			in:        "{ \"hello\": 2\n\"oops\": \"test\" }",
+			valid:     "{ \"hello\": 2,\n\"oops\": \"test\" }",
+			trailling: "{ \"hello\": 2,\n\"oops\": \"test\", }",
+		},
+		{
 			in: `["a" 2 4
 			{"nested": "keys"
 				"weird":"whitespace"}
