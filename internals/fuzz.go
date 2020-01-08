@@ -27,7 +27,7 @@ func FuzzLength(data []byte) int {
 
 // FuzzJson parses data as some JSON, and makes sure after going through
 // Fix, it's still the exact same string (if it's valid json, it shouldn't
-// be touched unless Trailling == true, which we set to false)
+// be touched unless Trailing == true, which we set to false)
 func FuzzJson(data []byte) int {
 	var obj interface{}
 	if err := json.Unmarshal(data, &obj); err != nil {

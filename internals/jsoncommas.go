@@ -11,20 +11,20 @@ import (
 )
 
 type Config struct {
-	Trailling bool
-	Logs      io.Writer
+	Trailing bool
+	Logs     io.Writer
 }
 
 // when to add a comma
 // between an ending char (bool, end quote, digit, ], } and a ) and a starting char (start quote, digit, bool, [, {)
-// if trailling, between ending char and ending char
+// if trailing, between ending char and ending char
 
 type Fixer struct {
 	config *Config
 	in     *bufio.Reader
 	out    *bufio.Writer
 
-	n               int64
+	n    int64
 	last byte
 
 	log *log.Logger
@@ -161,7 +161,7 @@ func (f *Fixer) insertComma(last byte) (returnerr error) {
 				}
 				break
 			}
-			f.log.Printf("space read: '%c'", b)
+			f.log.Printf("space read: '%q'", []byte{b})
 			if err := bytesRead.WriteByte(b); err != nil {
 				return fmt.Errorf("writting to internal buffer: %s", err)
 			}
@@ -209,10 +209,10 @@ func (f *Fixer) insertComma(last byte) (returnerr error) {
 	//     we need the space because otherwise 123 would be splited into 1,2,3
 	addComma = addComma || (isPotentialEnd(last) && spacesFound >= 1 && isPotentialStart(next))
 
-	// - trailling commas are enabled, and between some end, and end punctuation
+	// - trailing commas are enabled, and between some end, and end punctuation
 	//     eg true] (last=e and next=])
 
-	addComma = addComma || (f.config.Trailling && isPotentialEnd(last) && isEndPunctuation(next))
+	addComma = addComma || (f.config.Trailing && isPotentialEnd(last) && isEndPunctuation(next))
 
 	if addComma {
 		f.WriteByte(',')
@@ -224,20 +224,20 @@ func (f *Fixer) insertComma(last byte) (returnerr error) {
 func (f *Fixer) Fix() error {
 
 	for {
-		byte, err := f.in.ReadByte()
+		b, err := f.in.ReadByte()
 		if err != nil {
 			return err
 		}
-		f.log.Printf("regular read: '%c'", byte)
-		if err := f.WriteByte(byte); err != nil {
+		f.log.Printf("regular read: '%q'", []byte{b})
+		if err := f.WriteByte(b); err != nil {
 			return err
 		}
 
-		if byte == '"' {
+		if b == '"' {
 			if err := f.consumeString(); err != nil {
 				return err
 			}
-		} else if byte == '/' {
+		} else if b == '/' {
 			next, err := f.in.Peek(1)
 			if err != nil {
 				return err
@@ -253,7 +253,7 @@ func (f *Fixer) Fix() error {
 			// character, it's going to be consumed automatically
 			// by something else
 		} else {
-			if err := f.insertComma(byte); err != nil {
+			if err := f.insertComma(b); err != nil {
 				return err
 			}
 		}
@@ -283,6 +283,7 @@ func Fix(config *Config, in io.Reader, out io.Writer) (int64, error) {
 
 		log: log.New(config.Logs, "", log.LstdFlags),
 	}
+	f.log.Printf("config: %#v", config)
 	err := f.Fix()
 	if err == io.EOF {
 		err = nil

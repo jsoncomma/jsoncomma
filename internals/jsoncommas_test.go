@@ -2,9 +2,9 @@ package jsoncomma_test
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
-	"fmt"
 
 	jsoncomma "github.com/math2001/jsoncomma/internals"
 )
@@ -14,23 +14,23 @@ func TestAddCommas(t *testing.T) {
 		in string
 		// the expected output that is pure valid JSON
 		valid string
-		// the expected output with trailling option on
-		trailling string
+		// the expected output with trailing option on
+		trailing string
 	}{
 		{
-			in:        `{ "hello": "world" "oops": "world" }`,
-			valid:     `{ "hello": "world", "oops": "world" }`,
-			trailling: `{ "hello": "world", "oops": "world", }`,
+			in:       `{ "hello": "world" "oops": "world" }`,
+			valid:    `{ "hello": "world", "oops": "world" }`,
+			trailing: `{ "hello": "world", "oops": "world", }`,
 		},
 		{
-			in:        `{ "hello": 2 "oops": "test" }`,
-			valid:     `{ "hello": 2, "oops": "test" }`,
-			trailling: `{ "hello": 2, "oops": "test", }`,
+			in:       `{ "hello": 2 "oops": "test" }`,
+			valid:    `{ "hello": 2, "oops": "test" }`,
+			trailing: `{ "hello": 2, "oops": "test", }`,
 		},
 		{
-			in:        "{ \"hello\": 2\n\"oops\": \"test\" }",
-			valid:     "{ \"hello\": 2,\n\"oops\": \"test\" }",
-			trailling: "{ \"hello\": 2,\n\"oops\": \"test\", }",
+			in:       "{ \"hello\": 2\n\"oops\": \"test\" }",
+			valid:    "{ \"hello\": 2,\n\"oops\": \"test\" }",
+			trailing: "{ \"hello\": 2,\n\"oops\": \"test\", }",
 		},
 		{
 			in: `["a" 2 4
@@ -41,7 +41,7 @@ func TestAddCommas(t *testing.T) {
 			{"nested": "keys",
 				"weird":"whitespace"},
 			["still", "works"]]`,
-			trailling: `["a", 2, 4,
+			trailing: `["a", 2, 4,
 			{"nested": "keys",
 				"weird":"whitespace",},
 			["still", "works",],]`,
@@ -61,7 +61,7 @@ func TestAddCommas(t *testing.T) {
 			["still", "works"]
 			// i like it
 			]`,
-			trailling: `["a", 2, 4,
+			trailing: `["a", 2, 4,
 			// with comments!
 			{"nested": "keys", // kind of cool
 				"weird":"whitespace",},
@@ -84,7 +84,7 @@ func TestAddCommas(t *testing.T) {
 			["still", "works"]
 			// i like it
 			]`,
-			trailling: `["a", 2, 4,
+			trailing: `["a", 2, 4,
 			// with comments!
 			{"nested": "keys", // kind of cool
 				"weird":"whitespace, and sneaky [1 2]",},
@@ -93,16 +93,16 @@ func TestAddCommas(t *testing.T) {
 			]`,
 		},
 		{
-			in:        `{"hello": "world" "oops": "world"}`,
-			valid:     `{"hello": "world", "oops": "world"}`,
-			trailling: `{"hello": "world", "oops": "world",}`,
+			in:       `{"hello": "world" "oops": "world"}`,
+			valid:    `{"hello": "world", "oops": "world"}`,
+			trailing: `{"hello": "world", "oops": "world",}`,
 		},
 		{
 			in: `{"hello": "world"
 			"oops": "world"}`,
 			valid: `{"hello": "world",
 			"oops": "world"}`,
-			trailling: `{"hello": "world",
+			trailing: `{"hello": "world",
 			"oops": "world",}`,
 		},
 		{
@@ -112,71 +112,71 @@ func TestAddCommas(t *testing.T) {
 			valid: `{"hello": "world",
 			"oops": ["nested",
 			 "keys", "inline"]}`,
-			trailling: `{"hello": "world",
+			trailing: `{"hello": "world",
 			"oops": ["nested",
 			 "keys", "inline",],}`,
 		},
 		{
-			in: `{"a": "b""c": "d"}`,
-			valid: `{"a": "b","c": "d"}`,
-			trailling: `{"a": "b","c": "d",}`,
+			in:       `{"a": "b""c": "d"}`,
+			valid:    `{"a": "b","c": "d"}`,
+			trailing: `{"a": "b","c": "d",}`,
 		},
 		{
-			in: `[true true 123 false true]`,
-			valid: `[true, true, 123, false, true]`,
-			trailling: `[true, true, 123, false, true,]`,
+			in:       `[true true 123 false true]`,
+			valid:    `[true, true, 123, false, true]`,
+			trailing: `[true, true, 123, false, true,]`,
 		},
 
 		// thanks fuzzing :-)
 		{
-			in:        "0\t",
-			valid:     "0\t",
-			trailling: "0\t",
+			in:       "0\t",
+			valid:    "0\t",
+			trailing: "0\t",
 		},
 		{
-			in:        `""`,
-			valid:     `""`,
-			trailling: `""`,
+			in:       `""`,
+			valid:    `""`,
+			trailing: `""`,
 		},
 		{
-			in:        "60",
-			valid:     "60",
-			trailling: "60",
+			in:       "60",
+			valid:    "60",
+			trailing: "60",
 		},
 		{
-			in:        "/[",
-			valid:     "/[",
-			trailling: "/[",
+			in:       "/[",
+			valid:    "/[",
+			trailing: "/[",
 		},
 		{
-			in:        "0",
-			valid:     "0",
-			trailling: "0",
+			in:       "0",
+			valid:    "0",
+			trailing: "0",
 		},
 	}
 
 	for _, row := range table {
-		for _, trailling := range []bool{false, true} {
+		for _, trailing := range []bool{false, true} {
 			var logs bytes.Buffer
 
 			config := &jsoncomma.Config{
-				Trailling: trailling,
-				Logs:      &logs,
+				trailing: trailing,
+				Logs:     &logs,
 			}
 
 			var actual bytes.Buffer
 			actual.Grow(len(row.valid))
 
 			written, err := jsoncomma.Fix(config, strings.NewReader(row.in), &actual)
-			fmt.Fprintf(&logs, "Trailling: %t", trailling)
+			fmt.Fprintf(&logs, "trailing: %t", trailing)
 			if err != nil {
 				t.Logf("logs\n%s", logs.String())
 				t.Errorf("in: %#q, err: %s", row.in, err)
 			}
 
 			var expected string
-			if trailling {
-				expected = row.trailling
+			if trailing {
+				expected = row.trailing
 			} else {
 				expected = row.valid
 			}

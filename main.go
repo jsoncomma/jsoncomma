@@ -10,6 +10,8 @@ import (
 	jsoncomma "github.com/math2001/jsoncomma/internals"
 )
 
+const HeaderTrailing = "X-Trailing"
+
 func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
@@ -29,28 +31,28 @@ func main() {
 			return
 		}
 
-		var trailling bool
-		if r.Header.Get("trailling") == "true" {
-			trailling = true
-		} else if _, ok := r.Header["trailling"]; ok {
+		var trailing bool
+		if r.Header.Get(HeaderTrailing) == "true" {
+			trailing = true
+		} else if _, ok := r.Header[HeaderTrailing]; ok {
 			respondJSON(w, http.StatusBadRequest, kv{
 				"kind":   "bad request",
 				"error":  "bad option",
-				"option": "trailling",
-				"msg":    fmt.Sprintf("expected 'true' or nothing, got %v", r.Header["trailling"]),
+				"option": "trailing",
+				"msg":    fmt.Sprintf("expected 'true' or nothing, got %v", r.Header[HeaderTrailing]),
 			})
 			return
 		}
 
 		conf := &jsoncomma.Config{
-			Trailling: trailling,
-			Logs:      os.Stderr,
+			Trailing: trailing,
+			Logs:     os.Stderr,
 		}
 
 		// we don't actually know if it's JSON. It's just whatever kind of
 		// text the user gave us that we passed through some filter
 		// the main reason is that the JSON we return may contain
-		// comments, trailling comma, etc... Hence it would be wrong to
+		// comments, trailing comma, etc... Hence it would be wrong to
 		// use a application/json header
 		w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
