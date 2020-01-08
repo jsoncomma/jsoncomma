@@ -1,9 +1,10 @@
-package main
+package jsoncomma_test
 
 import (
 	"bytes"
 	"strings"
 	"testing"
+	"github.com/math2001/jsoncomma"
 )
 
 func TestAddCommas(t *testing.T) {
@@ -80,7 +81,7 @@ func TestAddCommas(t *testing.T) {
 			 "keys", "inline"]}`,
 		},
 	}
-	config := &Config{
+	config := &jsoncomma.Config{
 		Trailling: false,
 	}
 
@@ -90,7 +91,7 @@ func TestAddCommas(t *testing.T) {
 		var actual bytes.Buffer
 		actual.Grow(len(row.out))
 
-		if _, err := Fix(config, strings.NewReader(row.in), &actual); err != nil {
+		if _, err := jsoncomma.Fix(config, strings.NewReader(row.in), &actual); err != nil {
 			t.Errorf("in: %s, err: %s", row.in, err)
 		}
 

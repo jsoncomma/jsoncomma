@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"strings"
+
+	jsoncomma "github.com/math2001/jsoncomma/internals"
 )
 
 const json = `{
@@ -16,11 +18,11 @@ const json = `{
 
 func main() {
 	var buffer bytes.Buffer
-	config := &Config{
+	config := &jsoncomma.Config{
 		Trailling: false,
 	}
 	fmt.Printf("in: %d bytes\n", len(json))
-	n, err := Fix(config, strings.NewReader(json), &buffer)
+	n, err := jsoncomma.Fix(config, strings.NewReader(json), &buffer)
 	if err != nil {
 		log.Printf("error: %s", err)
 	}
