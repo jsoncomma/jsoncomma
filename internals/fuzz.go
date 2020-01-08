@@ -4,6 +4,7 @@ package jsoncomma
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 )
 
@@ -15,7 +16,7 @@ func FuzzLength(data []byte) int {
 	}
 	if written < len(data) {
 		// written >= len(data) at all times (all we do is insert commas where needed)
-		panic("Wrote less bytes than given.")
+		panic(fmt.Sprintf("Wrote less bytes than given (wrote %q)", data))
 	}
 	return 1
 }

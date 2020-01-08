@@ -5,11 +5,14 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"log"
 	"unicode"
 )
 
 type Config struct {
 	Trailling bool
+	Logs      io.Writer
 }
 
 // when to add a comma
@@ -23,6 +26,8 @@ type Fixer struct {
 
 	n               int
 	lastSignificant byte
+
+	log *log.Logger
 }
 
 func (f *Fixer) WriteByte(b byte) error {
@@ -49,16 +54,15 @@ func (f *Fixer) consumeString() error {
 	var bytes []byte
 	var err error
 
-	for len(bytes) == 0 || bytes[len(bytes)-2] == '\\' {
+	for len(bytes) == 0 || (len(bytes) >= 2 && bytes[len(bytes)-2] == '\\') {
 		bytes, err = f.in.ReadBytes('"')
 		if err := f.Write(bytes); err != nil {
 			return err
 		}
+		f.log.Printf("consume string: %#q", bytes)
 		if err != nil {
 			return err
 		}
-
-		assert(len(bytes) >= 2, "len bytes should be greater than 2, got %d in %q", len(bytes), bytes)
 	}
 	if err := f.insertComma('"'); err != nil {
 		return err
@@ -76,6 +80,7 @@ func (f *Fixer) consumeComment() error {
 	if err := f.Write(bytes); err != nil {
 		return err
 	}
+	f.log.Printf("consume comment: %#q", bytes)
 	if err != nil {
 		return err
 	}
@@ -93,7 +98,7 @@ func isEnd(b byte) bool {
 	return b == '"' || b == '}' || b == ']' || (b >= '0' && b <= '9') || b == 'e' || b == 'l'
 }
 
-func (f *Fixer) insertComma(lastSignificant byte) error {
+func (f *Fixer) insertComma(lastSignificant byte) (returnerr error) {
 	if !isEnd(lastSignificant) {
 		return nil
 	}
@@ -106,6 +111,25 @@ func (f *Fixer) insertComma(lastSignificant byte) error {
 
 	var bytesRead bytes.Buffer
 	var next byte = ' '
+
+	// make sure we always write whatever we read to f.out
+	defer func() {
+		// if we encounter an error in this block, then it overwrites the
+		// error returned (set returnerr)
+
+		shouldWrite := int64(bytesRead.Len())
+		f.log.Printf("write from buffer")
+		written, err := f.out.ReadFrom(&bytesRead)
+		if err != nil {
+			f.log.Printf("overwriting error: %s", err)
+			returnerr = fmt.Errorf("writing from internal buffer: %s", err)
+		}
+		if written != shouldWrite {
+			f.log.Printf("overwriting error: %s", err)
+			returnerr = fmt.Errorf("writing from internal buffer: wrote %d bytes, expected %d", written, shouldWrite)
+		}
+	}()
+
 	// here, we have to ignore spaces and comments, in a loop because you can
 	// have whitespace, comment, whitespace, comment, etc...
 	for {
@@ -121,6 +145,7 @@ func (f *Fixer) insertComma(lastSignificant byte) error {
 				}
 				break
 			}
+			f.log.Printf("space read: '%c'", b)
 			if err := bytesRead.WriteByte(b); err != nil {
 				return fmt.Errorf("writting to internal buffer: %s", err)
 			}
@@ -157,29 +182,17 @@ func (f *Fixer) insertComma(lastSignificant byte) error {
 		f.WriteByte(',')
 	}
 
-	shouldWrite := int64(bytesRead.Len())
-	written, err := f.out.ReadFrom(&bytesRead)
-	if err != nil {
-		return fmt.Errorf("writing from internal buffer: %s", err)
-	}
-	if written != shouldWrite {
-		return fmt.Errorf("writing from internal buffer: wrote %d bytes, expected %d", written, shouldWrite)
-	}
-
 	return nil
 }
 
 func (f *Fixer) Fix() error {
 
 	for {
-		// pay attention to
-		// after a comment, consume the whole thing
-		// within a string, consume the whole thing
-
 		byte, err := f.in.ReadByte()
 		if err := f.WriteByte(byte); err != nil {
 			return err
 		}
+		f.log.Printf("regular read: '%c'", byte)
 		if err != nil {
 			return err
 		}
@@ -223,10 +236,16 @@ func (f *Fixer) Flush() error {
 // Fix writes everything from in to out, just adding commas where needed
 // returns the number of bytes written, and error
 func Fix(config *Config, in io.Reader, out io.Writer) (int, error) {
+
+	if config.Logs == nil {
+		config.Logs = ioutil.Discard
+	}
 	f := &Fixer{
 		config: config,
 		in:     bufio.NewReader(in),
 		out:    bufio.NewWriter(out),
+
+		log: log.New(config.Logs, "", log.LstdFlags),
 	}
 	err := f.Fix()
 	if err == io.EOF {

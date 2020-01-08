@@ -4,7 +4,8 @@ import (
 	"bytes"
 	"strings"
 	"testing"
-	"github.com/math2001/jsoncomma"
+
+	jsoncomma "github.com/math2001/jsoncomma/internals"
 )
 
 func TestAddCommas(t *testing.T) {
@@ -80,23 +81,37 @@ func TestAddCommas(t *testing.T) {
 			"oops": ["nested",
 			 "keys", "inline"]}`,
 		},
-	}
-	config := &jsoncomma.Config{
-		Trailling: false,
-	}
 
-	t.Logf("config: %v", config)
+		// thanks fuzzing :-)
+		{
+			in:  "0\t",
+			out: "0\t",
+		},
+		{
+			in:  `""`,
+			out: `""`,
+		},
+	}
 
 	for _, row := range table {
+		var logs bytes.Buffer
+
+		config := &jsoncomma.Config{
+			Trailling: false,
+			Logs:      &logs,
+		}
+
 		var actual bytes.Buffer
 		actual.Grow(len(row.out))
 
 		if _, err := jsoncomma.Fix(config, strings.NewReader(row.in), &actual); err != nil {
-			t.Errorf("in: %s, err: %s", row.in, err)
+			t.Logf("logs\n%s", logs.String())
+			t.Errorf("in: %#q, err: %s", row.in, err)
 		}
 
 		actual_str := actual.String()
 		if actual_str != row.out {
+			t.Logf("logs\n%s", logs.String())
 			t.Errorf("in: %#q\nactual:   %#q\nexpected: %#q", row.in, actual_str, row.out)
 		}
 
