@@ -83,6 +83,7 @@ func respondJSON(w http.ResponseWriter, code int, obj kv) {
 	w.Header().Add("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(code)
 	enc := json.NewEncoder(w)
+	enc.SetIndent("", "\t")
 	err := enc.Encode(obj)
 	if err != nil {
 		log.Printf("respond json: %s", err)
