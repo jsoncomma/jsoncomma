@@ -15,4 +15,4 @@ fuzzing_workdir/jsoncomma.zip: $(GOFILES)
 	go-fuzz-build -o fuzzing_workdir/jsoncomma.zip ./internals
 
 fuzz: fuzzing_workdir/jsoncomma.zip
-	go-fuzz -bin=fuzzing_workdir/jsoncomma.zip -workdir=fuzzing_workdir/
+	go-fuzz -bin=fuzzing_workdir/jsoncomma.zip -workdir=fuzzing_workdir/ -func FuzzJson
