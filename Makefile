@@ -1,15 +1,17 @@
 .PHONY: test run fuzz
 
-test: $(shell fd --extension go)
+GOFILES=$(shell fd --extension go)
+
+test: $(GOFILES)
 	goimports -w .
 	go test ./...
 
-run: $(shell fd --extension go)
+run: $(GOFILES)
 	goimports -w .
 	go build
 	./jsoncomma
 
-fuzzing_workdir/jsoncomma.zip:
+fuzzing_workdir/jsoncomma.zip: $(GOFILES)
 	go-fuzz-build -o fuzzing_workdir/jsoncomma.zip ./internals
 
 fuzz: fuzzing_workdir/jsoncomma.zip

@@ -132,6 +132,11 @@ func (f *Fixer) insertComma(lastSignificant byte) (returnerr error) {
 
 	// here, we have to ignore spaces and comments, in a loop because you can
 	// have whitespace, comment, whitespace, comment, etc...
+
+	// we also need to make sure we have at least one space between 
+	// the lastSignificant and the nextSignificant (otherwise 60 would
+	// result in 6,0)
+	spacesFound := 0
 	for {
 		for {
 			b, err := f.in.ReadByte()
@@ -149,6 +154,7 @@ func (f *Fixer) insertComma(lastSignificant byte) (returnerr error) {
 			if err := bytesRead.WriteByte(b); err != nil {
 				return fmt.Errorf("writting to internal buffer: %s", err)
 			}
+			spacesFound += 1
 		}
 		if next != '/' {
 			break
@@ -178,7 +184,7 @@ func (f *Fixer) insertComma(lastSignificant byte) (returnerr error) {
 
 	}
 
-	if isStart(next) {
+	if spacesFound > 0 && isStart(next) {
 		f.WriteByte(',')
 	}
 
