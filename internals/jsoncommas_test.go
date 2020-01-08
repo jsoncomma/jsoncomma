@@ -3,6 +3,9 @@ package jsoncomma_test
 import (
 	"bytes"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"os"
 	"strings"
 	"testing"
 
@@ -10,6 +13,7 @@ import (
 )
 
 func TestAddCommas(t *testing.T) {
+	t.Parallel()
 	table := []struct {
 		in string
 		// the expected output that is pure valid JSON
@@ -156,44 +160,73 @@ func TestAddCommas(t *testing.T) {
 	}
 
 	for _, row := range table {
-		for _, trailing := range []bool{false, true} {
-			var logs bytes.Buffer
+		for _, trailing := range []bool{true, false} {
+			row := row
+			trailing := trailing
+			t.Run(fmt.Sprintf("row %#q", row.in), func(t *testing.T) {
+				t.Parallel()
+				var logs bytes.Buffer
 
-			config := &jsoncomma.Config{
-				trailing: trailing,
-				Logs:     &logs,
-			}
+				config := &jsoncomma.Config{
+					Trailing: trailing,
+					Logs:     &logs,
+				}
 
-			var actual bytes.Buffer
-			actual.Grow(len(row.valid))
+				var actual bytes.Buffer
+				actual.Grow(len(row.valid))
 
-			written, err := jsoncomma.Fix(config, strings.NewReader(row.in), &actual)
-			fmt.Fprintf(&logs, "trailing: %t", trailing)
-			if err != nil {
+				written, err := jsoncomma.Fix(config, strings.NewReader(row.in), &actual)
+				if err != nil {
+					t.Errorf("in: %#q, err: %s", row.in, err)
+				}
+				fmt.Fprintf(&logs, "trailing: %t", trailing)
 				t.Logf("logs\n%s", logs.String())
-				t.Errorf("in: %#q, err: %s", row.in, err)
-			}
 
-			var expected string
-			if trailing {
-				expected = row.trailing
-			} else {
-				expected = row.valid
-			}
+				var expected string
+				if trailing {
+					expected = row.trailing
+				} else {
+					expected = row.valid
+				}
 
-			actualString := actual.String()
-			if int64(len(actualString)) != written {
-				t.Logf("logs\n%s", logs.String())
-				t.Errorf("in: %#q, output: %#q (%d bytes), yet written %d bytes", row.in, actualString, len(actualString), written)
-			}
-			if actualString != expected {
-				// t.Logf("logs\n%s", logs.String())
-				t.Errorf("in: %#q\nactual:   %#q\nexpected: %#q", row.in, actualString, expected)
-			}
+				actualString := actual.String()
+				if int64(len(actualString)) != written {
+					t.Errorf("in: %#q, output: %#q (%d bytes), yet written %d bytes", row.in, actualString, len(actualString), written)
+				}
+				if actualString != expected {
+					t.Errorf("in: %#q\nactual:   %#q\nexpected: %#q", row.in, actualString, expected)
+				}
+
+			})
 		}
-
 	}
 }
 
-// TODO: fuzz (make it's parsable json, pass through AddComma, and make sure you get equivalent json out)
-// TODO: fuzz random stuff and make sure that the len(out) >= len(in), and diff is only commas
+func BenchmarkFix(b *testing.B) {
+	b.ReportAllocs()
+	f, err := os.Open("../testdata/random.json")
+
+	if err != nil {
+		b.Fatalf("opening large JSON file: %s", err)
+	}
+	for i := 0; i < b.N; i++ {
+		jsoncomma.Fix(&jsoncomma.Config{
+			Trailing: false,
+			Logs:     ioutil.Discard,
+		}, f, ioutil.Discard)
+	}
+}
+
+// ideally, Fix is as fast as io.Copy
+func BenchmarkRef(b *testing.B) {
+	b.ReportAllocs()
+	f, err := os.Open("../testdata/random.json")
+
+	if err != nil {
+		b.Fatalf("opening large JSON file: %s", err)
+	}
+
+	for i := 0; i < b.N; i++ {
+		io.Copy(ioutil.Discard, f)
+	}
+}
