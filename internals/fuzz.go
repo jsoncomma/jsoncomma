@@ -15,10 +15,10 @@ func FuzzLength(data []byte) int {
 		return 0
 	}
 	output := buf.String()
-	if len(output) != written {
+	if int64(len(output)) != written {
 		panic(fmt.Sprintf("output: %q (%d bytes), yet written = %d", output, len(output), written))
 	}
-	if written < len(data) {
+	if written < int64(len(data)) {
 		// written >= len(data) at all times (all we do is insert commas where needed)
 		panic(fmt.Sprintf("Wrote less bytes than given (written = %d) (given %q, wrote %q)", written, data, output))
 	}

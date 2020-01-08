@@ -24,7 +24,7 @@ type Fixer struct {
 	in     *bufio.Reader
 	out    *bufio.Writer
 
-	n               int
+	n               int64
 	lastSignificant byte
 
 	log *log.Logger
@@ -44,7 +44,7 @@ func (f *Fixer) Write(b []byte) error {
 	if err != nil {
 		return err
 	}
-	f.n += n
+	f.n += int64(n)
 	return nil
 }
 
@@ -128,6 +128,7 @@ func (f *Fixer) insertComma(lastSignificant byte) (returnerr error) {
 			f.log.Printf("overwriting error: %s", err)
 			returnerr = fmt.Errorf("writing from internal buffer: wrote %d bytes, expected %d", written, shouldWrite)
 		}
+		f.n += written
 	}()
 
 	// here, we have to ignore spaces and comments, in a loop because you can
@@ -170,13 +171,15 @@ func (f *Fixer) insertComma(lastSignificant byte) (returnerr error) {
 
 		// consume the comment
 		// we can't use consume comment, because it writes to the buffer
-		bytes, err := f.in.ReadBytes('\n')
-		if err != nil {
-			return err
+		bytes, readerr := f.in.ReadBytes('\n')
+
+		// make sure we write all the bytes we read, even if there is an error
+		written, writeerr := bytesRead.Write(bytes)
+		if writeerr != nil {
+			return fmt.Errorf("writing to internal buffer: %s", writeerr)
 		}
-		written, err := bytesRead.Write(bytes)
-		if err != nil {
-			return fmt.Errorf("writing to internal buffer: %s", err)
+		if readerr != nil {
+			return readerr
 		}
 		if written != len(bytes) {
 			return fmt.Errorf("writing to internal buffer: wrote %d bytes, expected %d", written, len(bytes))
@@ -195,11 +198,11 @@ func (f *Fixer) Fix() error {
 
 	for {
 		byte, err := f.in.ReadByte()
-		if err := f.WriteByte(byte); err != nil {
+		if err != nil {
 			return err
 		}
 		f.log.Printf("regular read: '%c'", byte)
-		if err != nil {
+		if err := f.WriteByte(byte); err != nil {
 			return err
 		}
 
@@ -231,7 +234,7 @@ func (f *Fixer) Fix() error {
 	}
 }
 
-func (f *Fixer) Written() int {
+func (f *Fixer) Written() int64 {
 	return f.n
 }
 
@@ -241,7 +244,7 @@ func (f *Fixer) Flush() error {
 
 // Fix writes everything from in to out, just adding commas where needed
 // returns the number of bytes written, and error
-func Fix(config *Config, in io.Reader, out io.Writer) (int, error) {
+func Fix(config *Config, in io.Reader, out io.Writer) (int64, error) {
 
 	if config.Logs == nil {
 		config.Logs = ioutil.Discard

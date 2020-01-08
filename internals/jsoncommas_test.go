@@ -95,6 +95,10 @@ func TestAddCommas(t *testing.T) {
 			in: "60",
 			out: "60",
 		},
+		{
+			in: "/[",
+			out: "/[",
+		},
 	}
 
 	for _, row := range table {
@@ -108,17 +112,17 @@ func TestAddCommas(t *testing.T) {
 		var actual bytes.Buffer
 		actual.Grow(len(row.out))
 
-		_, err := jsoncomma.Fix(config, strings.NewReader(row.in), &actual)
+		written, err := jsoncomma.Fix(config, strings.NewReader(row.in), &actual)
 		if err != nil {
 			t.Logf("logs\n%s", logs.String())
 			t.Errorf("in: %#q, err: %s", row.in, err)
 		}
 
 		actualString := actual.String()
-		// if len(actualString) != written {
-		// 	t.Logf("logs\n%s", logs.String())
-		// 	t.Errorf("in: %#q, output: %#q (%d bytes), yet written %d bytes", row.in, actualString, len(actualString), written) 
-		// }
+		if int64(len(actualString)) != written {
+			t.Logf("logs\n%s", logs.String())
+			t.Errorf("in: %#q, output: %#q (%d bytes), yet written %d bytes", row.in, actualString, len(actualString), written) 
+		}
 		if actualString != row.out {
 			t.Logf("logs\n%s", logs.String())
 			t.Errorf("in: %#q\nactual:   %#q\nexpected: %#q", row.in, actualString, row.out)
