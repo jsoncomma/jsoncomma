@@ -212,7 +212,6 @@ func BenchmarkFix(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		jsoncomma.Fix(&jsoncomma.Config{
 			Trailing: false,
-			Logs:     ioutil.Discard,
 		}, f, ioutil.Discard)
 	}
 }

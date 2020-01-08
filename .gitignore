@@ -1,2 +1,4 @@
 fuzzing_workdir/
 jsoncomma
+testdata/
+# ignore test data because it's heavy. FIXME: write code that generates test data

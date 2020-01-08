@@ -1,0 +1,6 @@
+goos: linux
+goarch: amd64
+pkg: github.com/math2001/jsoncomma/internals
+BenchmarkFix-8   	  194773	      5472 ns/op	    8944 B/op	      23 allocs/op
+PASS
+ok  	github.com/math2001/jsoncomma/internals	8.121s

@@ -59,7 +59,9 @@ func (f *Fixer) consumeString() error {
 		if err := f.Write(bytes); err != nil {
 			return err
 		}
-		f.log.Printf("consume string: %#q", bytes)
+		if f.log != nil {
+			f.log.Printf("consume string: %#q", bytes)
+		}
 		if err != nil {
 			return err
 		}
@@ -80,7 +82,9 @@ func (f *Fixer) consumeComment() error {
 	if err := f.Write(bytes); err != nil {
 		return err
 	}
-	f.log.Printf("consume comment: %#q", bytes)
+	if f.log != nil {
+		f.log.Printf("consume comment: %#q", bytes)
+	}
 	if err != nil {
 		return err
 	}
@@ -128,14 +132,17 @@ func (f *Fixer) insertComma(last byte) (returnerr error) {
 		// error returned (set returnerr)
 
 		shouldWrite := int64(bytesRead.Len())
-		f.log.Printf("write from buffer")
 		written, err := f.out.ReadFrom(&bytesRead)
 		if err != nil {
-			f.log.Printf("overwriting error: %s", err)
+			if f.log != nil {
+				f.log.Printf("overwriting error: %s", err)
+			}
 			returnerr = fmt.Errorf("writing from internal buffer: %s", err)
 		}
 		if written != shouldWrite {
-			f.log.Printf("overwriting error: %s", err)
+			if f.log != nil {
+				f.log.Printf("overwriting error: %s", err)
+			}
 			returnerr = fmt.Errorf("writing from internal buffer: wrote %d bytes, expected %d", written, shouldWrite)
 		}
 		f.n += written
@@ -161,7 +168,9 @@ func (f *Fixer) insertComma(last byte) (returnerr error) {
 				}
 				break
 			}
-			f.log.Printf("space read: '%q'", []byte{b})
+			if f.log != nil {
+				f.log.Printf("space read: '%q'", []byte{b})
+			}
 			if err := bytesRead.WriteByte(b); err != nil {
 				return fmt.Errorf("writting to internal buffer: %s", err)
 			}
@@ -228,7 +237,9 @@ func (f *Fixer) Fix() error {
 		if err != nil {
 			return err
 		}
-		f.log.Printf("regular read: '%q'", []byte{b})
+		if f.log != nil {
+			f.log.Printf("regular read: '%q'", []byte{b})
+		}
 		if err := f.WriteByte(b); err != nil {
 			return err
 		}
@@ -273,17 +284,29 @@ func (f *Fixer) Flush() error {
 // returns the number of bytes written, and error
 func Fix(config *Config, in io.Reader, out io.Writer) (int64, error) {
 
-	if config.Logs == nil {
-		config.Logs = ioutil.Discard
+	var logger *log.Logger
+
+	// this is much more efficient (prevents formating, where ioutil.Discard does the formating and then discards it)
+	if config.Logs == ioutil.Discard {
+		config.Logs = nil
 	}
+
+	if config.Logs != nil {
+		logger = log.New(config.Logs, "", log.LstdFlags)
+	}
+
 	f := &Fixer{
 		config: config,
 		in:     bufio.NewReader(in),
 		out:    bufio.NewWriter(out),
 
-		log: log.New(config.Logs, "", log.LstdFlags),
+		log: logger,
 	}
-	f.log.Printf("config: %#v", config)
+
+	if f.log != nil {
+		f.log.Printf("config: %#v", config)
+	}
+
 	err := f.Fix()
 	if err == io.EOF {
 		err = nil
