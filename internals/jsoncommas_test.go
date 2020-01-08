@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"fmt"
 
 	jsoncomma "github.com/math2001/jsoncomma/internals"
 )
@@ -43,7 +44,7 @@ func TestAddCommas(t *testing.T) {
 			trailling: `["a", 2, 4,
 			{"nested": "keys",
 				"weird":"whitespace",},
-			["still", "works"],]`,
+			["still", "works",],]`,
 		},
 		{
 			in: `["a" 2 4
@@ -64,7 +65,7 @@ func TestAddCommas(t *testing.T) {
 			// with comments!
 			{"nested": "keys", // kind of cool
 				"weird":"whitespace",},
-			["still", "works"],
+			["still", "works",],
 			// i like it
 			]`,
 		},
@@ -86,8 +87,8 @@ func TestAddCommas(t *testing.T) {
 			trailling: `["a", 2, 4,
 			// with comments!
 			{"nested": "keys", // kind of cool
-				"weird":"whitespace, and sneaky [1 2]"},
-			["still", "works"]
+				"weird":"whitespace, and sneaky [1 2]",},
+			["still", "works",],
 			// i like it
 			]`,
 		},
@@ -114,6 +115,16 @@ func TestAddCommas(t *testing.T) {
 			trailling: `{"hello": "world",
 			"oops": ["nested",
 			 "keys", "inline",],}`,
+		},
+		{
+			in: `{"a": "b""c": "d"}`,
+			valid: `{"a": "b","c": "d"}`,
+			trailling: `{"a": "b","c": "d",}`,
+		},
+		{
+			in: `[true true 123 false true]`,
+			valid: `[true, true, 123, false, true]`,
+			trailling: `[true, true, 123, false, true,]`,
 		},
 
 		// thanks fuzzing :-)
@@ -145,7 +156,7 @@ func TestAddCommas(t *testing.T) {
 	}
 
 	for _, row := range table {
-		for _, trailling := range []bool{false} {
+		for _, trailling := range []bool{false, true} {
 			var logs bytes.Buffer
 
 			config := &jsoncomma.Config{
@@ -157,6 +168,7 @@ func TestAddCommas(t *testing.T) {
 			actual.Grow(len(row.valid))
 
 			written, err := jsoncomma.Fix(config, strings.NewReader(row.in), &actual)
+			fmt.Fprintf(&logs, "Trailling: %t", trailling)
 			if err != nil {
 				t.Logf("logs\n%s", logs.String())
 				t.Errorf("in: %#q, err: %s", row.in, err)
@@ -175,7 +187,7 @@ func TestAddCommas(t *testing.T) {
 				t.Errorf("in: %#q, output: %#q (%d bytes), yet written %d bytes", row.in, actualString, len(actualString), written)
 			}
 			if actualString != expected {
-				t.Logf("logs\n%s", logs.String())
+				// t.Logf("logs\n%s", logs.String())
 				t.Errorf("in: %#q\nactual:   %#q\nexpected: %#q", row.in, actualString, expected)
 			}
 		}

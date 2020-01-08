@@ -25,7 +25,7 @@ type Fixer struct {
 	out    *bufio.Writer
 
 	n               int64
-	lastSignificant byte
+	last byte
 
 	log *log.Logger
 }
@@ -88,18 +88,28 @@ func (f *Fixer) consumeComment() error {
 
 }
 
-func isStart(b byte) bool {
+func isPotentialStart(b byte) bool {
 	// f for false, t for true, n for null
-	return b == '"' || b == '{' || b == '[' || (b >= '0' && b <= '9') || b == 'f' || b == 't' || b == 'n'
+	return isStartPunctuation(b) || (b >= '0' && b <= '9') || b == 'f' || b == 't' || b == 'n'
 }
 
-func isEnd(b byte) bool {
+func isStartPunctuation(b byte) bool {
+	// f for false, t for true, n for null
+	return b == '"' || b == '{' || b == '['
+}
+
+func isPotentialEnd(b byte) bool {
+	return isEndPunctuation(b) || (b >= '0' && b <= '9') || b == 'e' || b == 'l'
+}
+
+func isEndPunctuation(b byte) bool {
 	// this is a bit dodgy. the 'e' is for false and true, the 'l' is for null
-	return b == '"' || b == '}' || b == ']' || (b >= '0' && b <= '9') || b == 'e' || b == 'l'
+	return b == '"' || b == '}' || b == ']'
 }
 
-func (f *Fixer) insertComma(lastSignificant byte) (returnerr error) {
-	if !isEnd(lastSignificant) {
+func (f *Fixer) insertComma(last byte) (returnerr error) {
+	// last is the last non-whitespace byte
+	if !isPotentialEnd(last) {
 		return nil
 	}
 
@@ -135,7 +145,7 @@ func (f *Fixer) insertComma(lastSignificant byte) (returnerr error) {
 	// have whitespace, comment, whitespace, comment, etc...
 
 	// we also need to make sure we have at least one space between
-	// the lastSignificant and the nextSignificant (otherwise 60 would
+	// the last and the nextSignificant (otherwise 60 would
 	// result in 6,0)
 	spacesFound := 0
 	for {
@@ -187,7 +197,24 @@ func (f *Fixer) insertComma(lastSignificant byte) (returnerr error) {
 
 	}
 
-	if spacesFound > 0 && isStart(next) {
+	// this is the magic. We insert a comma if any of those conditions are fulfilled
+
+	// - we are between an end punctuation and a some potential start
+	//     eg ...lue1""val... (last = " and next = ")
+	//     eg ...lue1"true (last = " and next = t)
+	addComma := isEndPunctuation(last) && isPotentialStart(next)
+
+	// - we are between a potential end and a potential start AND THERE IS AT LEAST A SPACE
+	//     eg 123 456 (last = 3 and next = 4).
+	//     we need the space because otherwise 123 would be splited into 1,2,3
+	addComma = addComma || (isPotentialEnd(last) && spacesFound >= 1 && isPotentialStart(next))
+
+	// - trailling commas are enabled, and between some end, and end punctuation
+	//     eg true] (last=e and next=])
+
+	addComma = addComma || (f.config.Trailling && isPotentialEnd(last) && isEndPunctuation(next))
+
+	if addComma {
 		f.WriteByte(',')
 	}
 
