@@ -1,12 +1,19 @@
 <!DOCTYPE html>
-{{ .BotGenerated }}
 <html>
 <head>
     <meta charset="utf-8">
     <title>JSON Comma</title>
-    <link rel="stylesheet" type="text/css" href="main.css">
+    <!-- {{/* just make debugging the css a bit easier, whilst having a very efficient web page */}} -->
+    {{ if .Style }}
+    <style>
+    {{ .Style }}
+    </style>
+    {{ else }}
+    <link rel="stylesheet" type="text/css" href="./main.css">
+    {{ end }}
 </head>
 <body>
+    {{ .BotGenerated }}
     <h1>jsoncomma
         <code>{{ .Version }}</code>
     </h1>

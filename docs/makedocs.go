@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -16,19 +17,37 @@ import (
 // builds the documentation
 
 func main() {
-	vars := map[string]interface{}{
-		"BotGenerated":        template.HTML(fmt.Sprintf("<!-- HTML Automatically build by makedocs.go on %s-->", time.Now())),
-		"Version":             getVersion(),
-		"JsonCommaServerHelp": getHelp(),
-	}
 	tmpl := template.Must(template.New("index.html.template").Option("missingkey=error").ParseFiles("./docs/index.html.template"))
 	f, err := os.Create("./docs/index.html")
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err := tmpl.Execute(f, vars); err != nil {
+	cssFile, err := os.Open("./docs/main.css")
+	if err != nil {
 		log.Fatal(err)
 	}
+
+	style, err := ioutil.ReadAll(cssFile)
+	if err != nil {
+		log.Fatalf("reading css file: %s", err)
+	}
+
+	// embed the CSS within the HTML because that means that the entire
+	// webpage can be loaded at once (everything is contained in index.html).
+	// It makes it feel so much faster <3
+	// When writing the documenation, there's a dirty hack which allows you
+	// to still preview the template file as if you saw the the original HTML file
+	// TODO: maybe build a quick dev server?
+
+	if err := tmpl.Execute(f, map[string]interface{}{
+		"BotGenerated":        template.HTML(fmt.Sprintf("<!-- HTML Automatically build by makedocs.go on %s-->", time.Now())),
+		"Version":             getVersion(),
+		"JsonCommaServerHelp": getHelp(),
+		"Style":               template.CSS(string(style)),
+	}); err != nil {
+		log.Fatal(err)
+	}
+
 	log.Print("done")
 }
 
