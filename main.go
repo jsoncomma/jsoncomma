@@ -1,94 +1,83 @@
 package main
 
 import (
-	"encoding/json"
+	"bytes"
+	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"strings"
+	"sync"
 
 	jsoncomma "github.com/math2001/jsoncomma/internals"
+	"github.com/math2001/jsoncomma/server"
 )
 
-const HeaderTrailing = "X-Trailing"
-
 func main() {
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			respondJSON(w, http.StatusBadRequest, kv{
-				"kind": "bad request",
-				"msg":  "should only send requests to /",
-			})
-			return
+
+	serverCmd := flag.NewFlagSet("server", flag.ExitOnError)
+	serverHost := serverCmd.String("host", "localhost", "Address to bind the server to. (if empty, it binds to every interface)")
+	serverPort := serverCmd.Int("port", 2442, "The port to listen on")
+
+	if len(os.Args) == 1 {
+		serverCmd.Parse(os.Args[1:])
+		flag.Usage()
+		return
+	}
+
+	if os.Args[1] == "server" {
+		serverCmd.Parse(os.Args[2:])
+		if err := server.Serve(*serverHost, *serverPort); err != nil {
+			log.Fatal(err)
 		}
+		return
+	}
 
-		if r.Method != http.MethodPost {
-			respondJSON(w, http.StatusBadRequest, kv{
-				"kind":           "invalid method",
-				"msg":            "should only send POST requests to /",
-				"current method": r.Method,
-			})
-			return
-		}
+	flag.Parse()
 
-		var trailing bool
-		if r.Header.Get(HeaderTrailing) == "true" {
-			trailing = true
-		} else if _, ok := r.Header[HeaderTrailing]; ok {
-			respondJSON(w, http.StatusBadRequest, kv{
-				"kind":   "bad request",
-				"error":  "bad option",
-				"option": "trailing",
-				"msg":    fmt.Sprintf("expected 'true' or nothing, got %v", r.Header[HeaderTrailing]),
-			})
-			return
-		}
-
-		conf := &jsoncomma.Config{
-			Trailing: trailing,
-			Logs:     os.Stderr,
-		}
-
-		// we don't actually know if it's JSON. It's just whatever kind of
-		// text the user gave us that we passed through some filter
-		// the main reason is that the JSON we return may contain
-		// comments, trailing comma, etc... Hence it would be wrong to
-		// use a application/json header
-		w.Header().Add("Content-Type", "text/plain; charset=utf-8")
-		w.WriteHeader(http.StatusOK)
-
-		defer r.Body.Close()
-		if _, err := jsoncomma.Fix(conf, r.Body, w); err != nil {
-			log.Printf("fixing: %s", err)
-		}
-	})
-
-	// 2442 comes from sum(map(lambda c: ord(c), "json")) == 442. It's too small
-	// so 2442 is cool because it reads backwards
-	err := http.ListenAndServe(":2442", nil)
-	if err != nil {
+	// file/folder names only
+	if err := fix(flag.Args()); err != nil {
 		log.Fatal(err)
 	}
 }
 
-// key value
-type kv map[string]interface{}
+func fix(filenames []string) error {
+	var wg sync.WaitGroup
+	for _, filename := range filenames {
+		// I'm not sure about os.O_SYNC. I'm guessing I have to use
+		// it because
+		wg.Add(1)
+		go func(filename string) {
+			defer wg.Done()
+			// because we would be reading at the same time as reading
+			// from the same file, that means that the read operation and
+			// write operation are dependent, which doesn't work with Fixer
+			// (it assumes that they are two completely different things)
 
-type resp struct {
-	code int
-	body kv
-}
+			// so right now, I'll just do this big fat discusting thing
+			// FIXME: is there a nice way to kind of "split" the file,
+			// so they have two different carets? (maybe open the file twice?
+			// is that possible?)
+			content, err := ioutil.ReadFile(filename)
+			if err != nil {
+				log.Print(err)
+			}
 
-func respondJSON(w http.ResponseWriter, code int, obj kv) {
-	w.Header().Add("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(code)
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "\t")
-	err := enc.Encode(obj)
-	if err != nil {
-		log.Printf("respond json: %s", err)
+			f, err := os.OpenFile(filename, os.O_RDWR|os.O_SYNC, 0644)
+			if err != nil {
+				log.Print(err)
+			}
+			defer f.Close()
+
+			if _, err := jsoncomma.Fix(&jsoncomma.Config{}, bytes.NewReader(content), f); err != nil {
+				log.Printf("fixing %q: %s", filename, err)
+			}
+			log.Printf("done %q", filename)
+		}(filename)
 	}
+	wg.Wait()
+	return nil
 }
 
 func localtest() {
