@@ -12,13 +12,11 @@ import (
 )
 
 type Config struct {
-	Trailing bool
-	Logs     io.Writer
+	Logs io.Writer
 }
 
 // when to add a comma
 // between an ending char (bool, end quote, digit, ], } and a ) and a starting char (start quote, digit, bool, [, {)
-// if trailing, between ending char and ending char
 
 type Fixer struct {
 	config *Config
@@ -219,11 +217,6 @@ func (f *Fixer) insertComma(last byte) (returnerr error) {
 	//     we need the space because otherwise 123 would be splited into 1,2,3
 	addComma = addComma || (isPotentialEnd(last) && spacesFound >= 1 && isPotentialStart(next))
 
-	// - trailing commas are enabled, and between some end, and end punctuation
-	//     eg true] (last=e and next=])
-
-	addComma = addComma || (f.config.Trailing && isPotentialEnd(last) && isEndPunctuation(next))
-
 	if addComma {
 		f.WriteByte(',')
 	}
@@ -233,16 +226,21 @@ func (f *Fixer) insertComma(last byte) (returnerr error) {
 
 func (f *Fixer) Fix() error {
 
+	var prev, b byte
+	var err error
 	for {
-		b, err := f.in.ReadByte()
+		prev = b
+		b, err = f.in.ReadByte()
 		if err != nil {
 			return err
 		}
 		if f.log != nil {
 			f.log.Printf("regular read: '%q'", []byte{b})
 		}
-		if err := f.WriteByte(b); err != nil {
-			return err
+		if b != ',' {
+			if err := f.WriteByte(b); err != nil {
+				return err
+			}
 		}
 
 		if b == '"' {
@@ -265,6 +263,9 @@ func (f *Fixer) Fix() error {
 			// character, it's going to be consumed automatically
 			// by something else
 		} else {
+			if b == ',' {
+				b = prev
+			}
 			if err := f.insertComma(b); err != nil {
 				return err
 			}

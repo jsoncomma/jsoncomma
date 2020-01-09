@@ -27,12 +27,6 @@
 
     <p><em>There currently isn't any official plugin.</em></p>
 
-    <h2>Options</h2>
-
-    <p>I'm currently considering removing the <code>trailing</code> option, make it <code>false</code> for everyone. The reason for that is that <code>jsoncomma</code> adds commas if needed, so the problem that having trailing comma solves is already solved by jsoncomma.</p>
-
-    <p>Hence, documentation will come once I will have settled.</p>
-
     <h2>Plugin Developer Reference</h2>
 
     <h3>Guidlines</h3>
@@ -81,23 +75,6 @@
             <pre><code>&lt;The uploaded code, with commas fixed up&gt;</code></pre>
             <p>The reason the content type isn't <code>application/json; charset=utf-8</code> is because the response might contain comments for example, making it invalid JSON.</p>
         </li>
-
-        <li>
-            Endpoint: <code>/</code><br />
-            Method: <code>POST</code><br />
-            Status Code: <code>400</code><br />
-            Content-Type: <code>application/json; charset=utf-8</code><br />
-            <p>+ invalid value for a known option</p>
-            Body:
-            <pre><code>{
-    "kind": "bad request",
-    "error": "bad option value",
-    "option": &lt;option name&gt;,
-    "header": &lt;corresponding HTTP header&gt;,
-    "msg": &lt;details&gt;
-}</code></pre>
-        </li>
-    
 
         <li>
             Endpoint: <code>/</code><br />

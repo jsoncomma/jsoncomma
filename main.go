@@ -97,8 +97,6 @@ func fix(filenames []string) error {
 	return nil
 }
 
-const HeaderTrailing = "X-Trailing"
-
 type kv map[string]interface{}
 
 func serve(host string, port int) error {
@@ -124,29 +122,14 @@ func serve(host string, port int) error {
 			return
 		}
 
-		var trailing bool = false
-		if r.Header.Get(HeaderTrailing) == "true" {
-			trailing = true
-		} else if _, ok := r.Header[HeaderTrailing]; ok && r.Header.Get(HeaderTrailing) != "false" {
-			respondJSON(w, http.StatusBadRequest, kv{
-				"kind":   "bad request",
-				"error":  "bad header value",
-				"option": "trailing",
-				"header": HeaderTrailing,
-				"msg":    fmt.Sprintf("expected 'true', 'false', or not specified, got %v", r.Header[HeaderTrailing]),
-			})
-			return
-		}
-
 		conf := &jsoncomma.Config{
-			Trailing: trailing,
-			Logs:     nil,
+			Logs: nil,
 		}
 
 		// we don't actually know if it's JSON. It's just whatever kind of
 		// text the user gave us that we passed through some filter
 		// the main reason is that the JSON we return may contain
-		// comments, trailing comma, etc... Hence it would be wrong to
+		// comments etc... Hence it would be wrong to
 		// use a application/json header
 		w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
