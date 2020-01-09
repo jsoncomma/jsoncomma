@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"time"
 )
 
 // +build ignore
@@ -15,11 +16,12 @@ import (
 // builds the documentation
 
 func main() {
-	vars := map[string]string{
+	vars := map[string]interface{}{
+		"BotGenerated":        template.HTML(fmt.Sprintf("<!-- HTML Automatically build by makedocs.go on %s-->", time.Now())),
 		"Version":             getVersion(),
 		"JsonCommaServerHelp": getHelp(),
 	}
-	tmpl := template.Must(template.New("index.html.template").ParseFiles("./docs/index.html.template"))
+	tmpl := template.Must(template.New("index.html.template").Option("missingkey=error").ParseFiles("./docs/index.html.template"))
 	f, err := os.Create("./docs/index.html")
 	if err != nil {
 		log.Fatal(err)
@@ -27,6 +29,7 @@ func main() {
 	if err := tmpl.Execute(f, vars); err != nil {
 		log.Fatal(err)
 	}
+	log.Print("done")
 }
 
 func getVersion() string {
