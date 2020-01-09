@@ -14,7 +14,25 @@ h1, h2, h3, h4 {
 }
 
 pre {
+    overflow-x: auto;
     background-color: var(--grey1);
-    padding: 10px;
     border-radius: 3px;
+}
+
+pre code {
+    display: inline-block;
+    padding: 10px;
+}
+
+code {
+    background-color: var(--grey1);
+    border-radius: 3px;
+    padding: 1px 5px;
+}
+
+h1 code,
+h2 code
+h3 code {
+    background: none;
+    padding: 0;
 }

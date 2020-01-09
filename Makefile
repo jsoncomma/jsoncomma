@@ -1,4 +1,4 @@
-.PHONY: test run fuzz profs-memory profs-cpu
+.PHONY: test run fuzz build
 
 GOFILES=$(shell fd --extension go)
 
@@ -6,6 +6,11 @@ run: $(GOFILES)
 	goimports -w .
 	go build
 	./jsoncomma
+
+build: $(GOFILES)
+	goimports -w .
+	go generate
+	go build 
 
 test: $(GOFILES)
 	goimports -w .
@@ -15,12 +20,6 @@ profs: $(GOFILES)
 	mkdir -p profs
 	go test ./internals/ -o profs/internals.test -bench 'Fix$' -cpuprofile=profs/cpu.fix | tee profs/bench.fix
 	touch profs
-
-profs-memory:
-	go tool pprof --alloc_space profs/internals.test profs/mem.fix
-
-profs-cpu:
-	go tool pprof profs/internals.test profs/cpu.fix
 
 fuzzing_workdir/jsoncomma.zip: $(GOFILES)
 	go-fuzz-build -o fuzzing_workdir/jsoncomma.zip ./internals

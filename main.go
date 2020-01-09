@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -21,12 +22,16 @@ func main() {
 	serverHost := serverCmd.String("host", "localhost", "Address to bind the server to. If empty, it binds to every interface.")
 	serverPort := serverCmd.Int("port", 2442, "The port to listen on")
 
-	flag.Usage = func() {
-		fmt.Println("$ jsoncomma files...")
-		fmt.Println("  Fixes all the files, in place.")
-		fmt.Println("$ jsoncoma server")
-		fmt.Println("  Runs a server to fix payloads")
+	serverCmd.Usage = func() {
+		fmt.Fprintln(serverCmd.Output(), "$ jsoncomma server")
+		fmt.Fprintln(serverCmd.Output(), "  Runs a server to fix payloads")
 		serverCmd.PrintDefaults()
+	}
+
+	flag.Usage = func() {
+		fmt.Fprintln(flag.CommandLine.Output(), "$ jsoncomma files...")
+		fmt.Fprintln(flag.CommandLine.Output(), "  Fixes all the files, in place.")
+		serverCmd.Usage()
 	}
 
 	if len(os.Args) == 1 {
@@ -152,7 +157,20 @@ func serve(host string, port int) error {
 		}
 	})
 
-	return http.ListenAndServe(fmt.Sprintf("%s:%d", host, port), nil)
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", host, port))
+	if err != nil {
+		return err
+	}
+
+	// output in JSON just to make it easy to parse
+	enc := json.NewEncoder(os.Stdout)
+	addr := listener.Addr().(*net.TCPAddr)
+	enc.Encode(kv{
+		"addr": addr.String(),
+		"host": addr.IP,
+		"port": addr.Port,
+	})
+	return http.Serve(listener, nil)
 }
 
 func respondJSON(w http.ResponseWriter, code int, obj kv) {

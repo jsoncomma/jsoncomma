@@ -7,7 +7,7 @@
 </head>
 <body>
     <h1>jsoncomma
-        <code>{{ .Version }}</code>
+        <code>v0.1.0</code>
     </h1>
     <p>jsoncomma is a simple utility which adds commas where needed (FIXME: add remove uneeded ones).</p>
     <p>It runs as a standalone program (written in Go), so it's completely independent of your editor. It's extremely simple to integrate, and here some already existing solution that you can plug and play.</p>
@@ -42,18 +42,22 @@
 
             <p>Make sure you don't have any false positives (ie. trying to fix something that isn't JSON)</p>
         </li>
-<!--         <li>People use JSON for all kinds of thing (for eg. <code>.sublime-settings</code> are JSON), so your plugin should try to do be as smart as possible by default (in the case of a sublime text, a plugin should support <em>by default</em> <code>.sublime-settings</code> files. However, until someone finds a way to detect whether the file is actually JSON <em>just from it's content</em> and <strong>without any false positive</strong> (you <strong>really</strong> don't want to fix something that isn't JSON), your plugin should be configurable:
-        </li>
- -->   
+   
     </ul>
 
     <h3>Using the server</h3>
 
     <p>Your plugin <strong>should NOT USE THE CLI</strong>. You will pay the process start up cost every time a user saves his file. Instead, use the optimized web server.</p>
 
-    <pre>$ jsoncomma server -help
+    <pre><code>$ jsoncomma server -help
 
-{{ .JsonCommaServerHelp }}</pre>
+$ jsoncomma server
+  Runs a server to fix payloads
+  -host string
+    	Address to bind the server to. If empty, it binds to every interface. (default &#34;localhost&#34;)
+  -port int
+    	The port to listen on (default 2442)
+</code></pre>
 
     <p>The server only handles one URL: <code>/</code>. You should only send POST requests on it, with the body content to be just the JSON you want to fix (ie. the file's content). The encoding should always be <code>UTF-8</code>. If any kind of error occurs on the server, only JSON responses will be issued, explaining the reason of the error. Otherwise, a plain text response is given: the uploaded code with fixed up commas.</p>
 
@@ -61,7 +65,7 @@
 
     <p>FIXME: fuzz that web server, and make sure they match the expected pages</p>
 
-    <!-- this section should be dynamically generated from the tests -->
+    
 
     <ul>
         <li>
@@ -70,8 +74,7 @@
             Status Code: <code>200</code><br />
             Content-Type: <code>text/plain; charset=utf-8</code><br />
             Body:
-            <pre>
-&lt;The uploaded code, with commas fixed up&gt;</pre>
+            <pre><code>&lt;The uploaded code, with commas fixed up&gt;</code></pre>
             <p>The reason the content type isn't <code>application/json; charset=utf-8</code> is because the response might contain comments for example, making it invalid JSON.</p>
         </li>
 
@@ -82,14 +85,13 @@
             Content-Type: <code>application/json; charset=utf-8</code><br />
             <p>+ invalid value for a known option</p>
             Body:
-            <pre>
-{
+            <pre><code>{
     "kind": "bad request",
     "error": "bad option value",
     "option": &lt;option name&gt;,
     "header": &lt;corresponding HTTP header&gt;,
     "msg": &lt;details&gt;
-}</pre>
+}</code></pre>
         </li>
     
 
@@ -99,12 +101,11 @@
             Status Code: <code>405</code><br />
             Content-Type: <code>application/json; charset=utf-8</code><br />
             Body:
-            <pre>
-{
+            <pre><code>{
     "kind": "method not allowed",
     "current method": &lt;method used&gt;,
     "msg": &lt;details&gt;
-}</pre>
+}</code></pre>
         </li>
 
         <li>
@@ -112,12 +113,11 @@
             Status Code: <code>404</code><br />
             Content-Type: <code>application/json; charset=utf-8</code><br />
             Body:
-            <pre>
-{
+            <pre><code>{
     "kind": "not found",
     "current path": &lt;path used&gt;
     "msg": &lt;details&gt;
-}</pre>
+}</code></pre>
         </li>
     </ul>
 
