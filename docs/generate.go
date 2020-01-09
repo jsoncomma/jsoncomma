@@ -8,3 +8,7 @@ func main() {
 		"JsonCommaServerHelp": getHelp(),
 	}
 }
+
+func getVersion() {
+
+}
