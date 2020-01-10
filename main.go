@@ -20,7 +20,7 @@ func main() {
 
 	serverCmd := flag.NewFlagSet("server", flag.ExitOnError)
 	serverHost := serverCmd.String("host", "localhost", "Address to bind the server to. If empty, it binds to every interface.")
-	serverPort := serverCmd.Int("port", 2442, "The port to listen on")
+	serverPort := serverCmd.Int("port", 0, "The port to listen on. 0 means 'chose random unused one'")
 
 	serverCmd.Usage = func() {
 		fmt.Fprintln(serverCmd.Output(), "$ jsoncomma server")
