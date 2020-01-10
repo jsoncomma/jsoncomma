@@ -1,4 +1,4 @@
-module github.com/math2001/jsoncomma
+module github.com/jsoncomma/jsoncomma
 
 go 1.13
 
