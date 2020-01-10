@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>JSON Comma</title>
+    <title>jsoncomma</title>
     <!-- {{/* just make debugging the css a bit easier, whilst having a very efficient web page */}} -->
     {{ if .Style }}
     <style>
@@ -17,8 +17,8 @@
     <h1>jsoncomma
         <code>{{ .Version }}</code>
     </h1>
-    <p>jsoncomma is a simple utility which adds commas where needed (FIXME: add remove uneeded ones).</p>
-    <p>It runs as a standalone program (written in Go), so it's completely independent of your editor. It's extremely simple to integrate, and here some already existing solution that you can plug and play.</p>
+    <p>jsoncomma is a simple utility which manages the commas in your JSON-like files. It adds needed ones, and removes the others.</p>
+    <p>jsoncomma runs as a standalone program (written in Go), so it's completely independent of your editor. It's extremely simple to integrate, and there are some already existing solution that you can "plug and play".</p>
     <p>It's bloody fast. Almost as fast as simple copying. And there is still some room for improvements.</p>
 
     <h2>Official Plugins</h2>
@@ -54,7 +54,6 @@
     <p>Your plugin <strong>should NOT USE THE CLI</strong>. You will pay the process start up cost every time a user saves his file. Instead, use the optimized web server.</p>
 
     <pre><code>$ jsoncomma server -help
-
 {{ .JsonCommaServerHelp }}</code></pre>
 
     <p>The server only handles one URL: <code>/</code>. You should only send POST requests on it, with the body content to be just the JSON you want to fix (ie. the file's content). The encoding should always be <code>UTF-8</code>. If any kind of error occurs on the server, only JSON responses will be issued, explaining the reason of the error. Otherwise, a plain text response is given: the uploaded code with fixed up commas.</p>

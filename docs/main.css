@@ -4,6 +4,7 @@ body {
     margin: auto;
     color: #333;
     text-align: justify;
+    font-family: serif;
 
     --grey1: hsl(240, 2.3%, 83.1%);
 }
@@ -31,7 +32,7 @@ code {
 }
 
 h1 code,
-h2 code
+h2 code,
 h3 code {
     background: none;
     padding: 0;
