@@ -1,0 +1,5 @@
+fuzzing_workdir/
+jsoncomma
+testdata/
+internals.test
+profs/
