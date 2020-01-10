@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	jsoncomma "github.com/math2001/jsoncomma/internals"
+	jsoncomma "github.com/jsoncomma/jsoncomma/internals"
 )
 
 func TestAddCommas(t *testing.T) {

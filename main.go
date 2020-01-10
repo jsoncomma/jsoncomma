@@ -13,7 +13,7 @@ import (
 	"strings"
 	"sync"
 
-	jsoncomma "github.com/math2001/jsoncomma/internals"
+	jsoncomma "github.com/jsoncomma/jsoncomma/internals"
 )
 
 func main() {
