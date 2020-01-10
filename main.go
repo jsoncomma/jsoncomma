@@ -18,6 +18,24 @@ import (
 
 func main() {
 
+	// try to read from stdin
+
+	stat, err := os.Stdin.Stat()
+	if err != nil {
+		log.Fatalf("getting os.stdin stat: %s", err)
+	}
+
+	// there is stuff if stdin
+	if stat.Mode()&os.ModeCharDevice == 0 {
+		if len(os.Args) > 1 {
+			log.Fatal("can't handle arguments when piping from stdin")
+		}
+		if _, err := jsoncomma.Fix(&jsoncomma.Config{}, os.Stdin, os.Stdout); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+
 	serverCmd := flag.NewFlagSet("server", flag.ExitOnError)
 	serverHost := serverCmd.String("host", "localhost", "Address to bind the server to. If empty, it binds to every interface.")
 	serverPort := serverCmd.Int("port", 0, "The port to listen on. 0 means 'chose random unused one'")
@@ -81,7 +99,7 @@ func fix(filenames []string) error {
 				return
 			}
 
-			f, err := os.OpenFile(filename, os.O_RDWR|os.O_SYNC, 0644)
+			f, err := os.OpenFile(filename, os.O_WRONLY|os.O_TRUNC, 0644)
 			if err != nil {
 				log.Print(err)
 			}
