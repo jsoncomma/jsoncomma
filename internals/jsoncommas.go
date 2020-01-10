@@ -311,15 +311,10 @@ func Fix(config *Config, in io.Reader, out io.Writer) (int64, error) {
 	var bufin *bufio.Reader
 	var bufout *bufio.Writer
 
-	var ok bool
-	if bufin, ok = in.(*bufio.Reader); !ok {
-		bufin = readersPool.Get().(*bufio.Reader)
-		bufin.Reset(in)
-	}
-	if bufout, ok = out.(*bufio.Writer); !ok {
-		bufout = writersPool.Get().(*bufio.Writer)
-		bufout.Reset(out)
-	}
+	bufin = readersPool.Get().(*bufio.Reader)
+	bufin.Reset(in)
+	bufout = writersPool.Get().(*bufio.Writer)
+	bufout.Reset(out)
 
 	defer func() {
 		readersPool.Put(bufin)

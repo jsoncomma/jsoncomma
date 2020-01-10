@@ -16,11 +16,6 @@ test: $(GOFILES)
 	goimports -w .
 	go test ./...
 
-profs: $(GOFILES)
-	mkdir -p profs
-	go test ./internals/ -o profs/internals.test -bench 'Fix$' -cpuprofile=profs/cpu.fix | tee profs/bench.fix
-	touch profs
-
 fuzzing_workdir/jsoncomma.zip: $(GOFILES)
 	go-fuzz-build -o fuzzing_workdir/jsoncomma.zip ./internals
 

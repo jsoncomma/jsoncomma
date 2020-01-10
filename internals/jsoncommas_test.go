@@ -172,7 +172,7 @@ func BenchmarkFix(b *testing.B) {
 	}
 }
 
-// ideally, Fix is as fast as io.Copy
+// ideally, Fix is as fast as io.Copy. So, that's our reference
 func BenchmarkRef(b *testing.B) {
 	b.ReportAllocs()
 	f, err := os.Open("../testdata/random.json")
