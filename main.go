@@ -37,19 +37,19 @@ func main() {
 	}
 
 	serverCmd := flag.NewFlagSet("server", flag.ExitOnError)
-	serverHost := serverCmd.String("host", "localhost", "Address to bind the server to. If empty, it binds to every interface.")
-	serverPort := serverCmd.Int("port", 0, "The port to listen on. 0 means 'chose random unused one'")
+	serverHost := serverCmd.String("host", "localhost", "Address to bind the server to. \nIf empty, it binds to every interface.")
+	// note here that we have to explicitely write the "default 0" because go thinks we don't care
+	// since 0 is the nil value of an int
+	serverPort := serverCmd.Int("port", 0, "The port to listen on.\n0 means 'chose random unused one' (default 0)")
 
 	serverCmd.Usage = func() {
-		fmt.Fprintln(serverCmd.Output(), "$ jsoncomma server")
-		fmt.Fprintln(serverCmd.Output(), "  Runs a server to fix payloads")
+		fmt.Fprintln(serverCmd.Output(), "Runs an optimized web server to fix payloads")
 		serverCmd.PrintDefaults()
 	}
 
 	flag.Usage = func() {
-		fmt.Fprintln(flag.CommandLine.Output(), "$ jsoncomma files...")
-		fmt.Fprintln(flag.CommandLine.Output(), "  Fixes all the files, in place.")
-		serverCmd.Usage()
+		fmt.Fprintln(flag.CommandLine.Output(), "$ jsoncomma files...    Fixes all the files, in place")
+		fmt.Fprintln(flag.CommandLine.Output(), "$ jsoncomma server      Starts the optimized server (server -help for more details)")
 	}
 
 	if len(os.Args) == 1 {
