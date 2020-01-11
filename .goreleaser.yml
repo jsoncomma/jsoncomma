@@ -11,7 +11,8 @@ builds:
     - darwin
     - windows
 archives:
-- replacements:
+- name_template: '{{ .ProjectName }}_{{ .Tag }}_{{ .Os }}_{{ .Arch }}'
+  replacements:
     darwin: Darwin
     linux: Linux
     windows: Windows

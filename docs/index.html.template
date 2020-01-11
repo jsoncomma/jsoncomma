@@ -27,7 +27,9 @@
     <p>They all emerge from one question: <em>why</em> did the user install this utility? My answer is because he just wants something which fixes up his JSON for him, in the background.</p>
     <ol>
         <li><strong>Your plugin should fix JSON files on save <u>by default</u></strong>. That's what most user's will want when they install your plugin. However, there should be an option to disable running on save.</li>
+
         <li><strong>Follow your editor's style, not <code>jsoncomma</code>'s</strong>. Although the features exposed should be common across all the different plugins, your plugin should follow your editor's style (menu items, command palette entries, settings, etc).</li>
+
         <li><strong>Try to automatically detect JSON files, and if you can't do it perfectly, be configurable.</strong>
             <ul>
                 <li>Detect JSON (<code>.json</code>, known file extension, etc)</li>
@@ -37,8 +39,12 @@
 
             <p>Make sure you don't have any false positives (ie. trying to fix something that isn't JSON-like)</p>
         </li>
+
         <li><strong>Allow the user to fix any code explicitely.</strong> If the user has some text selected, then your plugin should expose a command like <code>jsoncomma: fix commas</code> to fix <em>just</em> the selection. This is useful in cases where the user would be manually writing some JSON in a Python string for example.</li>
-        <li><strong>Ask to automatically install <code>jsoncomma</code> if the executable can't be found.</strong> If the user clicks yes, then you need to be 100% that the next time the user will start the editor, everything will work straight away. If you can't guarantee that, then you should only provide explanations about how to install <code>jsoncomma</code>.
+
+        <li><strong>Allow the user to chose where the executable is.</strong> This will probably always be a simple setting. Default should be <code>jsoncomma</code> (search in <code>$PATH</code>). <em>Remember (2), the name of that setting should follow the style of your editor. If you can, try to keep jsoncomma as one word.</em></li>
+
+        <li><strong>Ask to automatically install <code>jsoncomma</code> if the executable can't be found.</strong> If the user clicks yes, then you need to be 100% that the next time the user will start the editor, everything will work straight away. If you can't guarantee that, then you should only provide explanations about how to install <code>jsoncomma</code>. That means that should set the path setting explicitly (see point above). Don't rely on the user's <code>$PATH</code> variable.
 
         <p>This is important because there is nothing worse than click "automatically install for me" (ie. you don't know what's happening behind the scenes), and then having it not work. Here are where the you should put the executables on the different platforms (create the folders in case they don't exist):</p> 
 
