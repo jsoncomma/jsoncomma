@@ -46,9 +46,9 @@ h3 code {
     </style>
 </head>
 <body>
-    <!-- HTML Automatically build by makedocs.go on 2020-01-11 18:50:59.227928387 +1100 AEDT m=+0.002657959-->
+    <!-- HTML Automatically build by makedocs.go on 2020-01-11 19:05:17.096644254 +1100 AEDT m=+0.003035177-->
     <h1>jsoncomma
-        <code>v0.1.3</code>
+        <code>v0.1.4</code>
     </h1>
     <blockquote cite="https://jsoncomma.github.io">
         <code>jsoncomma</code> is a simple utility which manages the commas in your JSON-like files. It adds needed ones, and removes the others.
@@ -58,7 +58,7 @@ h3 code {
 
     <h2>Plugin Developer Reference</h2>
 
-    <p>If you are stuck, you can have a look at the <a href="https://github.com/jsoncomma/sublime-jsoncomma">reference plugin for Sublime Text</a>, or raise an issue to ask for so</p>
+    <p>If you are struggling, you can have a look at the <a href="https://github.com/jsoncomma/sublime-jsoncomma">reference plugin for Sublime Text</a>, or raise an issue, I'd be very happy to help you out :-)</p>
 
     <h3>Guidlines</h3>
 
@@ -180,11 +180,6 @@ Runs an optimized web server to fix payloads
     </ul>
 
     <p>That's it. Any other kind of response is an error and <a href="#report">should be reported</a></p>
-
-    <h2>Extra</h2>
-
-    <p>If you are wondering why the default port is 2442: it comes from <code>sum(map(lambda c: ord(c), "json")) == 442</code>. It's too small (it's recommended to use port > 1024, because below, they might be standard things like 80 for web, etc). So, I picked 2442 because it reads backwards.
-</p>
 
 </body>
 </html>
