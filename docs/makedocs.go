@@ -89,8 +89,19 @@ func main() {
         log.Fatalf("err: %s", err)
     }
 
-    log.Printf("  poping build stash [git stash pop]")
-    if err := exec.Command("git", "stash", "pop").Run(); err != nil {
+    // git checkout stash -- . overwrite files, where git stash pop doesn't
+    log.Printf("  poping build stash [git checkout stash -- .]")
+    if err := exec.Command("git", "checkout", "stash", "--", ".").Run(); err != nil {
+        var exitErr *exec.ExitError
+        if errors.As(err, &exitErr) {
+            log.Printf("Stderr: %s", exitErr.Stderr)
+        }
+        log.Fatalf("err: %s", err)
+    }
+
+    // the hack to forcefully pop the stash above doesn't drop it, so we do it manually
+    log.Printf("  droping build stash [git stash drop]")
+    if err := exec.Command("git", "stash", "drop").Run(); err != nil {
         var exitErr *exec.ExitError
         if errors.As(err, &exitErr) {
             log.Printf("Stderr: %s", exitErr.Stderr)
