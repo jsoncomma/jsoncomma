@@ -20,7 +20,7 @@
 
     <h2>Plugin Developer Reference</h2>
 
-    <p>If you are stuck, you can have a look at the <a href="https://github.com/jsoncomma/sublime-jsoncomma">reference plugin for Sublime Text</a>, or raise an issue to ask for so</p>
+    <p>If you are struggling, you can have a look at the <a href="https://github.com/jsoncomma/sublime-jsoncomma">reference plugin for Sublime Text</a>, or raise an issue, I'd be very happy to help you out :-)</p>
 
     <h3>Guidlines</h3>
 
@@ -135,11 +135,6 @@
     </ul>
 
     <p>That's it. Any other kind of response is an error and <a href="#report">should be reported</a></p>
-
-    <h2>Extra</h2>
-
-    <p>If you are wondering why the default port is 2442: it comes from <code>sum(map(lambda c: ord(c), "json")) == 442</code>. It's too small (it's recommended to use port > 1024, because below, they might be standard things like 80 for web, etc). So, I picked 2442 because it reads backwards.
-</p>
 
 </body>
 </html>
