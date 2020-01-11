@@ -89,6 +89,14 @@ func main() {
         log.Fatalf("err: %s", err)
     }
 
+    // remove index.html before poping the stash because index.html
+    // already exists on this branch, and poping doesn't want to overwrite
+    // because master:index.html was stashed with --untracked-files
+    log.Printf("  remove index.html")
+    if err := os.Remove("index.html"); err != nil && !os.IsNotExist(err) {
+        log.Fatalf("err: %s", err)
+    }
+
     log.Printf("  poping build stash [git stash pop]")
     if err := exec.Command("git", "stash", "pop").Run(); err != nil {
         var exitErr *exec.ExitError
