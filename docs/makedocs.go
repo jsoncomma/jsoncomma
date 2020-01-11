@@ -5,8 +5,10 @@ import (
     "errors"
     "fmt"
     "html/template"
+    "io"
     "io/ioutil"
     "log"
+    "net/http"
     "os"
     "os/exec"
     "time"
@@ -18,10 +20,17 @@ func main() {
 
     buildToGithubPages := false
 
-    if len(os.Args) == 2 && os.Args[1] == "gh-pages" {
-        buildToGithubPages = true
+    if len(os.Args) == 2 {
+        if os.Args[1] == "gh-pages" {
+            buildToGithubPages = true
+        } else if os.Args[1] == "dev-server" {
+            server()
+            return
+        } else {
+            log.Fatalf("expect 'gh-pages' or 'dev-server', got %q", os.Args[1])
+        }
     } else if len(os.Args) != 1 {
-        log.Fatalf("expect one optional argument, 'gh-pages'. Given %v", os.Args[1:])
+        log.Fatalf("expect one optional argument. Given %v", os.Args[1:])
     }
 
     if buildToGithubPages {
@@ -35,27 +44,6 @@ func main() {
         }
     }
 
-    log.Print("building documentation...")
-
-    // embed the CSS within the HTML because that means that the entire
-    // webpage can be loaded at once (everything is contained in index.html).
-    // It makes it feel so much faster <3
-    // When writing the documenation, there's a dirty hack which allows you
-    // to still preview the template file as if you saw the the original HTML file
-    // TODO: maybe build a quick dev server?
-
-    tmpl := template.Must(template.New("index.html.template").Option("missingkey=error").ParseFiles("./docs/index.html.template"))
-
-    cssFile, err := os.Open("./docs/main.css")
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    style, err := ioutil.ReadAll(cssFile)
-    if err != nil {
-        log.Fatalf("reading css file: %s", err)
-    }
-
     f, err := os.Create("./docs/build.html")
     if err != nil {
         log.Fatal(err)
@@ -63,14 +51,7 @@ func main() {
 
     version := getVersion()
 
-    if err := tmpl.Execute(f, map[string]interface{}{
-        "BotGenerated":        template.HTML(fmt.Sprintf("<!-- HTML Automatically build by makedocs.go on %s-->", time.Now())),
-        "Version":             version,
-        "JsonCommaServerHelp": getHelp(),
-        "Style":               template.CSS(string(style)),
-    }); err != nil {
-        log.Fatal(err)
-    }
+    buildTo(f, version)
 
     if !buildToGithubPages {
         log.Print("done")
@@ -79,7 +60,7 @@ func main() {
 
     log.Print("moving build to github pages branch")
 
-    // the reason I build to ./docs/build.html and then move to index.html is 
+    // the reason I build to ./docs/build.html and then move to index.html is
     // so that when you just run the build by itself (without pushing to
     // github pages branch), the build is ignored (docs/build.html in .gitignore).
     // renaming it index.html allows us to use git's stash (because index.html
@@ -121,7 +102,7 @@ func main() {
     if err := exec.Command("git", "add", "index.html").Run(); err != nil {
     	var exitErr *exec.ExitError
     	if errors.As(err, &exitErr) {
-    	    log.Printf("Stderr: %s", exitErr.Stderr)
+	        log.Printf("Stderr: %s", exitErr.Stderr)
     	}
     	log.Fatalf("err: %s", err)
     }
@@ -147,6 +128,56 @@ func main() {
     log.Print("done")
 }
 
+func server() {
+    version := getVersion()
+    reload := 0
+    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+        reload++
+        if r.URL.Path != "/" && r.URL.Path != "/index.html" {
+            http.Error(w, "404 Not Found", http.StatusNotFound)
+            return
+        }
+        if err := buildTo(w, fmt.Sprintf("%s (reload %d)", version, reload)); err != nil {
+            http.Error(w, fmt.Sprintf("err building: %s", err), http.StatusInternalServerError)
+        }
+    })
+    log.Printf("Starting server on port 8080")
+    if err := http.ListenAndServe(":8080", nil); err != nil {
+        log.Fatal(err)
+    }
+}
+
+func buildTo(w io.Writer, version string) error {
+    log.Print("building documentation...")
+
+    // embed the CSS within the HTML because that means that the entire
+    // webpage can be loaded at once (everything is contained in index.html).
+    // It makes it feel so much faster <3
+
+    tmpl := template.Must(template.New("index.html.template").Option("missingkey=error").ParseFiles("./docs/index.html.template"))
+
+    cssFile, err := os.Open("./docs/main.css")
+    if err != nil {
+        return err
+    }
+
+    style, err := ioutil.ReadAll(cssFile)
+    if err != nil {
+        return fmt.Errorf("reading css file: %s", err)
+    }
+
+    if err := tmpl.Execute(w, map[string]interface{}{
+        "BotGenerated":        template.HTML(fmt.Sprintf("<!-- HTML Automatically build by makedocs.go on %s-->", time.Now())),
+        "Version":             version,
+        "JsonCommaServerHelp": getHelp(),
+        "Style":               template.CSS(string(style)),
+    }); err != nil {
+        return err
+    }
+
+    return nil
+}
+
 func getVersion() string {
     log.Printf("  getting jsoncomma version from git")
     output, err := exec.Command("git", "describe", "--tags").Output()
@@ -167,7 +198,7 @@ func getHelp() string {
     log.Printf("  getting help message from jsoncomma")
 
     if _, err := exec.LookPath("./jsoncomma"); err != nil {
-        log.Fatalf  ("./jsoncomma doesn't exists. Run go build first (error: %s)", err)
+        log.Fatalf("./jsoncomma doesn't exists. Run go build first (error: %s)", err)
     }
 
     output, err := exec.Command("./jsoncomma", "server", "-help").Output()
