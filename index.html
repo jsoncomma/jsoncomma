@@ -2,9 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>JSON Comma</title>
-    
-    
+    <title>jsoncomma</title>
     <style>
     body {
     width: 100%;
@@ -12,6 +10,7 @@
     margin: auto;
     color: #333;
     text-align: justify;
+    font-family: serif;
 
     --grey1: hsl(240, 2.3%, 83.1%);
 }
@@ -39,61 +38,100 @@ code {
 }
 
 h1 code,
-h2 code
+h2 code,
 h3 code {
     background: none;
     padding: 0;
 }
     </style>
-    
 </head>
 <body>
-    <!-- HTML Automatically build by makedocs.go on 2020-01-10 13:51:34.931222682 +1100 AEDT m=+0.002976581-->
+    <!-- HTML Automatically build by makedocs.go on 2020-01-11 18:50:59.227928387 +1100 AEDT m=+0.002657959-->
     <h1>jsoncomma
-        <code>v0.1.0-8-g78394a1</code>
+        <code>v0.1.3</code>
     </h1>
-    <p>jsoncomma is a simple utility which adds commas where needed (FIXME: add remove uneeded ones).</p>
-    <p>It runs as a standalone program (written in Go), so it's completely independent of your editor. It's extremely simple to integrate, and here some already existing solution that you can plug and play.</p>
+    <blockquote cite="https://jsoncomma.github.io">
+        <code>jsoncomma</code> is a simple utility which manages the commas in your JSON-like files. It adds needed ones, and removes the others.
+    </blockquote>
+    <p><code>jsoncomma</code> runs as a standalone program (written in Go), so it's completely independent of your editor. It's extremely simple to integrate, and there are some already existing solution that you can "plug and play".</p>
     <p>It's bloody fast. Almost as fast as simple copying. And there is still some room for improvements.</p>
-
-    <h2>Official Plugins</h2>
-
-    <p>FIXME: implement a reference plugin for Sublime Text</p>
-
-    <p><em>There currently isn't any official plugin.</em></p>
 
     <h2>Plugin Developer Reference</h2>
 
+    <p>If you are stuck, you can have a look at the <a href="https://github.com/jsoncomma/sublime-jsoncomma">reference plugin for Sublime Text</a>, or raise an issue to ask for so</p>
+
     <h3>Guidlines</h3>
 
-    <p>If you are implementing a plugin for an editor, then here are a few guidlines. They all emerge from one question: <em>why</em> did the user install this utility? My answer is because he just wants something which fixes up his JSON for him, in the background. Hence</p>
-    <ul>
-        <li><strong>Your plugin should fix JSON files <u>on save</u> by default</strong>. That's what most user's will want.</li>
+    <p>They all emerge from one question: <em>why</em> did the user install this utility? My answer is because he just wants something which fixes up his JSON for him, in the background.</p>
+    <ol>
+        <li><strong>Your plugin should fix JSON files on save <u>by default</u></strong>. That's what most user's will want when they install your plugin. However, there should be an option to disable running on save.</li>
+
+        <li><strong>Follow your editor's style, not <code>jsoncomma</code>'s</strong>. Although the features exposed should be common across all the different plugins, your plugin should follow your editor's style (menu items, command palette entries, settings, etc).</li>
+
         <li><strong>Try to automatically detect JSON files, and if you can't do it perfectly, be configurable.</strong>
-            
             <ul>
                 <li>Detect JSON (<code>.json</code>, known file extension, etc)</li>
                 <li>Support custom file extensions</li>
-                <li>Enable for this view kind of command (note that this command should only be visible is JSON Comma isn't already enabled)</li>
+                <li><i>We could try to detect if the file is JSON-like based on the payload exclusively, however it's very important to accomplish this a non-significant number of false positives. If you develop such feature, then it should be implemented in the <code>jsoncomma</code> server, not in a specific editor's plugin (as it would be editor independent).</i></li>
             </ul>
 
-            <p>Make sure you don't have any false positives (ie. trying to fix something that isn't JSON)</p>
+            <p>Make sure you don't have any false positives (ie. trying to fix something that isn't JSON-like)</p>
         </li>
-   
-    </ul>
+
+        <li><strong>Allow the user to fix any code explicitely.</strong> If the user has some text selected, then your plugin should expose a command like <code>jsoncomma: fix commas</code> to fix <em>just</em> the selection. This is useful in cases where the user would be manually writing some JSON in a Python string for example.</li>
+
+        <li><strong>Allow the user to chose where the executable is.</strong> This will probably always be a simple setting. Default should be <code>jsoncomma</code> (search in <code>$PATH</code>). <em>Remember (2), the name of that setting should follow the style of your editor. If you can, try to keep jsoncomma as one word.</em></li>
+
+        <li><strong>Ask to automatically install <code>jsoncomma</code> if the executable can't be found.</strong> If the user clicks yes, then you need to be 100% that the next time the user will start the editor, everything will work straight away. If you can't guarantee that, then you should only provide explanations about how to install <code>jsoncomma</code>. That means that should set the path setting explicitly (see point above). Don't rely on the user's <code>$PATH</code> variable.
+
+        <p>This is important because there is nothing worse than click "automatically install for me" (ie. you don't know what's happening behind the scenes), and then having it not work. Here are where the you should put the executables on the different platforms (create the folders in case they don't exist):</p> 
+
+        <table>
+            <tr>
+                <td>Windows:</td>
+                <td><code>%APPDATA%\jsoncomma\jsoncomma.exe</code></td>
+            </tr>
+            <tr>
+                <td>Linux:</td>
+                <td><code>~/.config/jsoncomma/jsoncomma</code></td>
+            </tr>
+            <tr>
+                <td>OS X:</td>
+                <td><code>~/Library/Application Support/jsoncomma/jsoncomma</code></td>
+            </tr>
+        </table>
+        </li>
+    </ol>
 
     <h3>Using the server</h3>
 
-    <p>Your plugin <strong>should NOT USE THE CLI</strong>. You will pay the process start up cost every time a user saves his file. Instead, use the optimized web server.</p>
+    <p>In order to save start up cost every time a user saves his file, <code>jsoncomma</code> exposes an optimized web server which your plugin can use very easily.</p>
+
+    <p>Your plugin will need to start the server as the editor starts (start a subprocess), and terminate it as soon as the editor closes. <em>Make sure that there is always 1 <code>jsoncomma</code> server running.</em> Two servers running at the same time won't be a problem, but it's just a waste of resources.</p>
+
+    <pre><code>$ jsoncomma server
+{"addr":"127.0.0.1:36709","host":"127.0.0.1","port":36709}</code></pre>
+
+    <p>By default, <code>jsoncomma</code> will choose a port that isn't already used, and serve on <code>localhost</code>.</p>
+
+    <p>Parse this JSON (it's guaranteed to be all on the first line), you'll need it to contact the server.</p>
+
+    <p>The server is very simple: just send a POST request with the payload you want to fix, and it'll answer with the fixed payload.</p>
+
+    <p>So, when a user saves a file, your plugin will need to check whether it is a JSON-like file that could benefit from <code>jsoncomma</code>.</p>
+
+    <p>To fix a file, you just send all of the file's content to the server in a POST request, and it will give you back the fixed up payload.</p>
+
+    <h3>Server Reference</h3>
 
     <pre><code>$ jsoncomma server -help
-
-$ jsoncomma server
-  Runs a server to fix payloads
+Runs an optimized web server to fix payloads
   -host string
-    	Address to bind the server to. If empty, it binds to every interface. (default &#34;localhost&#34;)
+    	Address to bind the server to. 
+    	If empty, it binds to every interface. (default &#34;localhost&#34;)
   -port int
-    	The port to listen on (default 2442)
+    	The port to listen on.
+    	0 means &#39;chose random unused one&#39; (default 0)
 </code></pre>
 
     <p>The server only handles one URL: <code>/</code>. You should only send POST requests on it, with the body content to be just the JSON you want to fix (ie. the file's content). The encoding should always be <code>UTF-8</code>. If any kind of error occurs on the server, only JSON responses will be issued, explaining the reason of the error. Otherwise, a plain text response is given: the uploaded code with fixed up commas.</p>
