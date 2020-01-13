@@ -47,8 +47,10 @@ func main() {
 		serverCmd.PrintDefaults()
 	}
 
+	tostdout := flag.Bool("stdout", false, "write to stdout instead of in place")
+
 	flag.Usage = func() {
-		fmt.Fprintln(flag.CommandLine.Output(), "$ jsoncomma files...    Fixes all the files, in place")
+		fmt.Fprintln(flag.CommandLine.Output(), "$ jsoncomma files...    Fixes all the files")
 		fmt.Fprintln(flag.CommandLine.Output(), "$ jsoncomma server      Starts the optimized server (server -help for more details)")
 	}
 
@@ -68,12 +70,12 @@ func main() {
 	}
 
 	// file/folder names only
-	if err := fix(flag.Args()); err != nil {
+	if err := fix(flag.Args(), *tostdout); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func fix(filenames []string) error {
+func fix(filenames []string, tostdout bool) error {
 	var wg sync.WaitGroup
 	for _, filename := range filenames {
 		// I'm not sure about os.O_SYNC. I'm guessing I have to use
@@ -81,6 +83,21 @@ func fix(filenames []string) error {
 		wg.Add(1)
 		go func(filename string) {
 			defer wg.Done()
+
+			config := &jsoncomma.Config{}
+
+			if tostdout {
+				f, err := os.Open(filename)
+				if err != nil {
+					log.Print(err)
+					return
+				}
+				if _, err := jsoncomma.Fix(config, f, os.Stdout); err != nil {
+					log.Printf("fixing %q: %s", filename, err)
+					return
+				}
+				return
+			}
 			// because we would be reading at the same time as reading
 			// from the same file, that means that the read operation and
 			// write operation are dependent, which doesn't work with Fixer
@@ -105,7 +122,7 @@ func fix(filenames []string) error {
 			}
 			defer f.Close()
 
-			if _, err := jsoncomma.Fix(&jsoncomma.Config{}, bytes.NewReader(content), f); err != nil {
+			if _, err := jsoncomma.Fix(config, bytes.NewReader(content), f); err != nil {
 				log.Printf("fixing %q: %s", filename, err)
 				return
 			}
