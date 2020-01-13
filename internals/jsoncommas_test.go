@@ -175,7 +175,7 @@ func TestDiffMode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedBytes, err := ioutil.ReadFile("testdata/diffmode/output.txt")
+	expectedBytes, err := ioutil.ReadFile("testdata/diffmode/diff.txt")
 	if err != nil {
 		t.Fatal(err)
 	}
