@@ -77,58 +77,67 @@ func main() {
 
 func fix(filenames []string, tostdout bool) error {
 	var wg sync.WaitGroup
+
+	config := &jsoncomma.Config{}
+
 	for _, filename := range filenames {
 		// I'm not sure about os.O_SYNC. I'm guessing I have to use
 		// it because
-		wg.Add(1)
-		go func(filename string) {
-			defer wg.Done()
 
-			config := &jsoncomma.Config{}
-
-			if tostdout {
-				f, err := os.Open(filename)
-				if err != nil {
-					log.Print(err)
-					return
-				}
-				if _, err := jsoncomma.Fix(config, f, os.Stdout); err != nil {
-					log.Printf("fixing %q: %s", filename, err)
-					return
-				}
-				return
-			}
-			// because we would be reading at the same time as reading
-			// from the same file, that means that the read operation and
-			// write operation are dependent, which doesn't work with Fixer
-			// (it assumes that they are two completely different things)
-
-			// so right now, I'll just do this big fat discusting thing
-			// FIXME: is there a nice way to kind of "split" the file,
-			// so they have two different carets? (maybe open the file twice?
-			// is that possible?)
-
-			// maybe it would be more efficient to write to another file
-			// and then delete the original file and rename <other> to <original>
-			content, err := ioutil.ReadFile(filename)
+		if tostdout {
+			f, err := os.Open(filename)
 			if err != nil {
 				log.Print(err)
-				return
+				continue
 			}
-
-			f, err := os.OpenFile(filename, os.O_WRONLY|os.O_TRUNC, 0644)
-			if err != nil {
-				log.Print(err)
-			}
-			defer f.Close()
-
-			if _, err := jsoncomma.Fix(config, bytes.NewReader(content), f); err != nil {
+			if _, err := jsoncomma.Fix(config, f, os.Stdout); err != nil {
 				log.Printf("fixing %q: %s", filename, err)
-				return
+				continue
 			}
-		}(filename)
+		} else {
+			wg.Add(1)
+			go func(config *jsoncomma.Config, filename string) {
+				defer wg.Done()
+				if err := fixfile(config, filename); err != nil {
+					log.Println(err)
+					return
+				}
+			}(config, filename)
+		}
+
 	}
 	wg.Wait()
+	return nil
+}
+
+// fixfile fixes the file in place
+func fixfile(config *jsoncomma.Config, filename string) error {
+	// because we would be reading at the same time as reading
+	// from the same file, that means that the read operation and
+	// write operation are dependent, which doesn't work with Fixer
+	// (it assumes that they are two completely different things)
+
+	// so right now, I'll just do this big fat discusting thing
+	// FIXME: is there a nice way to kind of "split" the file,
+	// so they have two different carets? (maybe open the file twice?
+	// is that possible?)
+
+	// maybe it would be more efficient to write to another file
+	// and then delete the original file and rename <other> to <original>
+	content, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+
+	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if _, err := jsoncomma.Fix(config, bytes.NewReader(content), f); err != nil {
+		return fmt.Errorf("fixing %q: %s", filename, err)
+	}
 	return nil
 }
 
