@@ -93,7 +93,7 @@ func (f *Fixer) UnreadByte() error {
 
 func (f *Fixer) ReadBytes(delim byte) ([]byte, error) {
 	b, err := f.in.ReadBytes(delim)
-	f.log.Printf("read %b (%d) (%s)", b, len(b), err)
+	f.log.Printf("read %q (%d) (%s)", b, len(b), err)
 	if err != nil {
 		return nil, err
 	}
@@ -284,7 +284,11 @@ func (f *Fixer) insertComma(last byte) (returnerr error) {
 
 	if addComma {
 		if f.config.DiffMode {
-			fmt.Fprintf(f.out, "%d+\n", f.writtenCommas+f.read)
+			n, err := fmt.Fprintf(f.out, "%d+\n", f.writtenCommas+f.read)
+			if err != nil {
+				return fmt.Errorf("writing instruction: %s", err)
+			}
+			f.written += int64(n)
 			f.writtenCommas++
 		} else {
 			f.WriteByte(',')
@@ -319,10 +323,7 @@ func (f *Fixer) Fix() error {
 				}
 			}
 		} else {
-			if f.config.DiffMode {
-				fmt.Fprintf(f.out, "%d-\n", f.read+f.writtenCommas)
-				f.writtenCommas--
-			}
+
 		}
 
 		if b == '"' {
@@ -345,12 +346,29 @@ func (f *Fixer) Fix() error {
 			// character, it's going to be consumed automatically
 			// by something else
 		} else {
-			if b == ',' {
+
+			// jump through some stupid hoops just to detect whether
+			// a commas was inserted or not
+			commaCount := f.writtenCommas
+			isComma := b == ','
+			if isComma {
 				b = prev
+
 			}
 			if err := f.insertComma(b); err != nil {
 				return err
 			}
+
+			// didn't insert a comma, but there was one in the original (ie. we removed it)
+			if f.config.DiffMode && isComma && commaCount == f.writtenCommas {
+				n, err := fmt.Fprintf(f.out, "%d-\n", f.read+f.writtenCommas)
+				if err != nil {
+					return fmt.Errorf("writing instruction: %s", err)
+				}
+				f.written += int64(n)
+				f.writtenCommas--
+			}
+
 		}
 
 	}
