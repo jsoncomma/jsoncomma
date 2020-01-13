@@ -1,0 +1,12 @@
+// renamed the file to .notjson so that your autofix wouldn't kick in
+
+{
+    "hello": "world"
+    "this": "is"
+    "hi": ["a" 123123 "test" {
+        "i": "know"
+        "it is": true,
+    }
+    // some random comment about comments :^)
+    "lovely":  true],
+}
