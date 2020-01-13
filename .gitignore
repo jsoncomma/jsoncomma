@@ -1,6 +1,6 @@
 fuzzing_workdir/
 jsoncomma
-testdata/
 internals.test
 profs/
 docs/build.html
+internals/testdata/large.json

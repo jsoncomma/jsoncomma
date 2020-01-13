@@ -12,19 +12,40 @@ import (
 )
 
 type Config struct {
+	// Logs is the debug logger. If set to nil or ioutil.Discard,
+	// no log operation will occur (very significant perfs improvement)
 	Logs io.Writer
+
+	// Instead of re-writing the whole file, just write a bunch of lines
+	// format: {number} {+|-} where number is the offset (0 based), + means insert, - remove
+	// eg
+	// 10+
+	// 15-
+	// 20+
+	// 26+
+	// means insert at 10, then remove at 15, add at 20 and at 26.
+	// It's important to process these instructions sequentially. 26 refers to the
+	// position where the client should insert a comma after having inserted 2 commas
+	// and removed one (do you see how everything would be shifted by one character?)
+	// 89- means remove character after position 89 (between 89 and 90)
+	DiffMode bool
 }
 
 // when to add a comma
 // between an ending char (bool, end quote, digit, ], } and a ) and a starting char (start quote, digit, bool, [, {)
 
 type Fixer struct {
+	// TODO: config shouldn't be changed it has been given to fixer.
+	// So, should we take a copy and not a reference?
 	config *Config
 	in     *bufio.Reader
 	out    *bufio.Writer
 
 	n    int64
 	last byte
+
+	// can be negative
+	writtenCommas int
 
 	log *log.Logger
 }
@@ -55,8 +76,10 @@ func (f *Fixer) consumeString() error {
 
 	for len(bytes) == 0 || (len(bytes) >= 2 && bytes[len(bytes)-2] == '\\') {
 		bytes, err = f.in.ReadBytes('"')
-		if err := f.Write(bytes); err != nil {
-			return err
+		if !f.config.DiffMode {
+			if err := f.Write(bytes); err != nil {
+				return err
+			}
 		}
 		if f.log != nil {
 			f.log.Printf("consume string: %#q", bytes)
@@ -78,8 +101,10 @@ func (f *Fixer) consumeComment() error {
 
 	// FIXME: better handling of different line endings
 	bytes, err = f.in.ReadBytes('\n')
-	if err := f.Write(bytes); err != nil {
-		return err
+	if !f.config.DiffMode {
+		if err := f.Write(bytes); err != nil {
+			return err
+		}
 	}
 	if f.log != nil {
 		f.log.Printf("consume comment: %#q", bytes)
@@ -218,7 +243,11 @@ func (f *Fixer) insertComma(last byte) (returnerr error) {
 	addComma = addComma || (isPotentialEnd(last) && spacesFound >= 1 && isPotentialStart(next))
 
 	if addComma {
-		f.WriteByte(',')
+		if f.config.DiffMode {
+			panic("not implemented")
+		} else {
+			f.WriteByte(',')
+		}
 	}
 
 	return nil
@@ -228,18 +257,27 @@ func (f *Fixer) Fix() error {
 
 	var prev, b byte
 	var err error
+
 	for {
 		prev = b
 		b, err = f.in.ReadByte()
 		if err != nil {
 			return err
 		}
+
 		if f.log != nil {
 			f.log.Printf("regular read: '%q'", []byte{b})
 		}
+
+		// we don't never write commas because they were given.
+		// we explicitely say where we want a comma (see insertComma)
 		if b != ',' {
-			if err := f.WriteByte(b); err != nil {
-				return err
+			if f.config.DiffMode {
+				panic("diff mode")
+			} else {
+				if err := f.WriteByte(b); err != nil {
+					return err
+				}
 			}
 		}
 

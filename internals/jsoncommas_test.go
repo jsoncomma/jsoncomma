@@ -12,7 +12,7 @@ import (
 	jsoncomma "github.com/jsoncomma/jsoncomma/internals"
 )
 
-func TestAddCommas(t *testing.T) {
+func TestNoDiffMode(t *testing.T) {
 	t.Parallel()
 	table := []struct {
 		in string
@@ -137,7 +137,8 @@ func TestAddCommas(t *testing.T) {
 			var logs bytes.Buffer
 
 			config := &jsoncomma.Config{
-				Logs: &logs,
+				Logs:     &logs,
+				DiffMode: false,
 			}
 
 			var actual bytes.Buffer
@@ -160,9 +161,41 @@ func TestAddCommas(t *testing.T) {
 	}
 }
 
+func TestDiffMode(t *testing.T) {
+	input, err := os.Open("testdata/diffmode/input.notjson")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedBytes, err := ioutil.ReadFile("testdata/diffmode/output.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var logs bytes.Buffer
+	var actual bytes.Buffer
+
+	n, err := jsoncomma.Fix(&jsoncomma.Config{
+		Logs: &logs,
+		DiffMode: true,
+	} , input, &actual)
+	if err != nil {
+		t.Errorf("fixing: %s", err)
+	}
+	if n != int64(actual.Len()) {
+		t.Errorf("n (%d) != len(buf) (%d)", n, actual.Len())
+	}
+
+
+	actualStr := actual.Bytes()
+
+	if !bytes.Equal(actualStr, expectedBytes) {
+		t.Errorf("dismatch:\nactual:   %q\nexpected: %q", actual, expectedBytes)
+	}
+}
+
 func BenchmarkFix(b *testing.B) {
 	b.ReportAllocs()
-	f, err := os.Open("../testdata/random.json")
+	f, err := os.Open("testdata/large.json")
 
 	if err != nil {
 		b.Fatalf("opening large JSON file: %s", err)
@@ -175,7 +208,7 @@ func BenchmarkFix(b *testing.B) {
 // ideally, Fix is as fast as io.Copy. So, that's our reference
 func BenchmarkRef(b *testing.B) {
 	b.ReportAllocs()
-	f, err := os.Open("../testdata/random.json")
+	f, err := os.Open("testdata/large.json")
 
 	if err != nil {
 		b.Fatalf("opening large JSON file: %s", err)
