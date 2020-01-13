@@ -103,6 +103,12 @@ func TestNoDiffMode(t *testing.T) {
 			in:  `[1 2 3,4,5,6,7, [2, 3, 4],]`,
 			out: `[1, 2, 3,4,5,6,7, [2, 3, 4]]`,
 		},
+		{
+			in: `// hello world [1 2, ]
+			[true false,]`,
+			out: `// hello world [1 2, ]
+			[true, false]`,
+		},
 
 		// thanks fuzzing :-)
 		{
@@ -144,13 +150,16 @@ func TestNoDiffMode(t *testing.T) {
 			var actual bytes.Buffer
 			actual.Grow(len(row.out))
 
-			written, err := jsoncomma.Fix(config, strings.NewReader(row.in), &actual)
+			read, written, err := jsoncomma.Fix(config, strings.NewReader(row.in), &actual)
 			if err != nil {
 				t.Errorf("in: %#q, err: %s", row.in, err)
 			}
 			t.Logf("logs\n%s", logs.String())
 
 			actualString := actual.String()
+			if int64(len(row.in)) != read {
+				t.Errorf("in: %#q (%d bytes), yet read %d bytes", row.in, len(row.in), read)
+			}
 			if int64(len(actualString)) != written {
 				t.Errorf("in: %#q, output: %#q (%d bytes), yet written %d bytes", row.in, actualString, len(actualString), written)
 			}
@@ -162,7 +171,7 @@ func TestNoDiffMode(t *testing.T) {
 }
 
 func TestDiffMode(t *testing.T) {
-	input, err := os.Open("testdata/diffmode/input.notjson")
+	input, err := ioutil.ReadFile("testdata/diffmode/input.notjson")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,22 +183,28 @@ func TestDiffMode(t *testing.T) {
 	var logs bytes.Buffer
 	var actual bytes.Buffer
 
-	n, err := jsoncomma.Fix(&jsoncomma.Config{
-		Logs: &logs,
+	read, written, err := jsoncomma.Fix(&jsoncomma.Config{
+		Logs:     &logs,
 		DiffMode: true,
-	} , input, &actual)
+	}, bytes.NewReader(input), &actual)
+
+	t.Log(logs.String())
 	if err != nil {
 		t.Errorf("fixing: %s", err)
 	}
-	if n != int64(actual.Len()) {
-		t.Errorf("n (%d) != len(buf) (%d)", n, actual.Len())
+	t.Logf("read %d bytes", read)
+	t.Logf("wrote %d bytes", written)
+	if read != int64(len(input)) {
+		t.Errorf("n (%d) != len(input) (%d)", read, len(input))
+	}
+	if written != int64(actual.Len()) {
+		t.Errorf("n (%d) != len(output) (%d)", written, actual.Len())
 	}
 
+	actualBytes := actual.Bytes()
 
-	actualStr := actual.Bytes()
-
-	if !bytes.Equal(actualStr, expectedBytes) {
-		t.Errorf("dismatch:\nactual:   %q\nexpected: %q", actual, expectedBytes)
+	if !bytes.Equal(actualBytes, expectedBytes) {
+		t.Errorf("dismatch:\nactual:   %q\nexpected: %q", actualBytes, expectedBytes)
 	}
 }
 

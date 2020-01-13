@@ -41,31 +41,64 @@ type Fixer struct {
 	in     *bufio.Reader
 	out    *bufio.Writer
 
-	n    int64
-	last byte
+	written int64
+	read    int64
+	last    byte
 
 	// can be negative
-	writtenCommas int
+	writtenCommas int64
 
 	log *log.Logger
 }
 
 func (f *Fixer) WriteByte(b byte) error {
+	f.log.Printf("write %c", b)
 	err := f.out.WriteByte(b)
 	if err != nil {
 		return err
 	}
-	f.n += 1
+	f.written += 1
 	return nil
 }
 
 func (f *Fixer) Write(b []byte) error {
+	f.log.Printf("write %d", b)
 	n, err := f.out.Write(b)
 	if err != nil {
 		return err
 	}
-	f.n += int64(n)
+	f.written += int64(n)
 	return nil
+}
+
+func (f *Fixer) ReadByte() (byte, error) {
+	b, err := f.in.ReadByte()
+	f.log.Printf("read %c (%s)", b, err)
+	if err != nil {
+		return 0, err
+	}
+	f.read++
+	return b, nil
+}
+
+func (f *Fixer) UnreadByte() error {
+	err := f.in.UnreadByte()
+	f.log.Printf("unread (%s)", err)
+	if err != nil {
+		return err
+	}
+	f.read--
+	return nil
+}
+
+func (f *Fixer) ReadBytes(delim byte) ([]byte, error) {
+	b, err := f.in.ReadBytes(delim)
+	f.log.Printf("read %b (%d) (%s)", b, len(b), err)
+	if err != nil {
+		return nil, err
+	}
+	f.read += int64(len(b))
+	return b, nil
 }
 
 // consumeString reads the entire string and writes it to out, untouched.
@@ -75,7 +108,7 @@ func (f *Fixer) consumeString() error {
 	var err error
 
 	for len(bytes) == 0 || (len(bytes) >= 2 && bytes[len(bytes)-2] == '\\') {
-		bytes, err = f.in.ReadBytes('"')
+		bytes, err = f.ReadBytes('"')
 		if !f.config.DiffMode {
 			if err := f.Write(bytes); err != nil {
 				return err
@@ -100,8 +133,9 @@ func (f *Fixer) consumeComment() error {
 	var err error
 
 	// FIXME: better handling of different line endings
-	bytes, err = f.in.ReadBytes('\n')
+	bytes, err = f.ReadBytes('\n')
 	if !f.config.DiffMode {
+		f.log.Printf("writing comment")
 		if err := f.Write(bytes); err != nil {
 			return err
 		}
@@ -155,6 +189,12 @@ func (f *Fixer) insertComma(last byte) (returnerr error) {
 		// if we encounter an error in this block, then it overwrites the
 		// error returned (set returnerr)
 
+		// FIXME: this isn't the best. If we are in diff mode, we should just
+		// not write to bytesRead...
+		if f.config.DiffMode {
+			return
+		}
+
 		shouldWrite := int64(bytesRead.Len())
 		written, err := f.out.ReadFrom(&bytesRead)
 		if err != nil {
@@ -169,7 +209,7 @@ func (f *Fixer) insertComma(last byte) (returnerr error) {
 			}
 			returnerr = fmt.Errorf("writing from internal buffer: wrote %d bytes, expected %d", written, shouldWrite)
 		}
-		f.n += written
+		f.written += written
 	}()
 
 	// here, we have to ignore spaces and comments, in a loop because you can
@@ -181,13 +221,13 @@ func (f *Fixer) insertComma(last byte) (returnerr error) {
 	spacesFound := 0
 	for {
 		for {
-			b, err := f.in.ReadByte()
+			b, err := f.ReadByte()
 			if err != nil {
 				return err
 			}
 			next = b
 			if !unicode.IsSpace(rune(next)) {
-				if err := f.in.UnreadByte(); err != nil {
+				if err := f.UnreadByte(); err != nil {
 					return fmt.Errorf("unreading byte: %s", err)
 				}
 				break
@@ -213,8 +253,8 @@ func (f *Fixer) insertComma(last byte) (returnerr error) {
 		}
 
 		// consume the comment
-		// we can't use consume comment, because it writes to the buffer
-		bytes, readerr := f.in.ReadBytes('\n')
+		// we can't use consumeComment, because it writes to the buffer
+		bytes, readerr := f.ReadBytes('\n')
 
 		// make sure we write all the bytes we read, even if there is an error
 		written, writeerr := bytesRead.Write(bytes)
@@ -244,7 +284,8 @@ func (f *Fixer) insertComma(last byte) (returnerr error) {
 
 	if addComma {
 		if f.config.DiffMode {
-			panic("not implemented")
+			fmt.Fprintf(f.out, "%d+\n", f.writtenCommas+f.read)
+			f.writtenCommas++
 		} else {
 			f.WriteByte(',')
 		}
@@ -260,7 +301,7 @@ func (f *Fixer) Fix() error {
 
 	for {
 		prev = b
-		b, err = f.in.ReadByte()
+		b, err = f.ReadByte()
 		if err != nil {
 			return err
 		}
@@ -272,12 +313,15 @@ func (f *Fixer) Fix() error {
 		// we don't never write commas because they were given.
 		// we explicitely say where we want a comma (see insertComma)
 		if b != ',' {
-			if f.config.DiffMode {
-				panic("diff mode")
-			} else {
+			if !f.config.DiffMode {
 				if err := f.WriteByte(b); err != nil {
 					return err
 				}
+			}
+		} else {
+			if f.config.DiffMode {
+				fmt.Fprintf(f.out, "%d-\n", f.read+f.writtenCommas)
+				f.writtenCommas--
 			}
 		}
 
@@ -312,8 +356,14 @@ func (f *Fixer) Fix() error {
 	}
 }
 
+// written returns the number of bytes written
 func (f *Fixer) Written() int64 {
-	return f.n
+	return f.written
+}
+
+// Read returns the number of bytes read
+func (f *Fixer) Read() int64 {
+	return f.read
 }
 
 func (f *Fixer) Flush() error {
@@ -332,8 +382,8 @@ var writersPool = sync.Pool{
 }
 
 // Fix writes everything from in to out, just adding commas where needed
-// returns the number of bytes written, and error
-func Fix(config *Config, in io.Reader, out io.Writer) (int64, error) {
+// returns the number of bytes read, number of bytes written, and error
+func Fix(config *Config, in io.Reader, out io.Writer) (int64, int64, error) {
 
 	var logger *log.Logger
 
@@ -372,12 +422,14 @@ func Fix(config *Config, in io.Reader, out io.Writer) (int64, error) {
 	}
 
 	err := f.Fix()
+	read := f.Read()
+	written := f.Written()
+
 	if err == io.EOF {
 		err = nil
 	}
-	n := f.Written()
 	if err != nil {
-		return n, err
+		return read, written, err
 	}
-	return n, f.Flush()
+	return read, written, f.Flush()
 }
