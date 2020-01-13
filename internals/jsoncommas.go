@@ -2,12 +2,10 @@ package jsoncomma
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
-	"sync"
 	"unicode"
 )
 
@@ -29,374 +27,6 @@ type Config struct {
 	// and removed one (do you see how everything would be shifted by one character?)
 	// 89- means remove character after position 89 (between 89 and 90)
 	DiffMode bool
-}
-
-// when to add a comma
-// between an ending char (bool, end quote, digit, ], } and a ) and a starting char (start quote, digit, bool, [, {)
-
-type Fixer struct {
-	// TODO: config shouldn't be changed it has been given to fixer.
-	// So, should we take a copy and not a reference?
-	config *Config
-	in     *bufio.Reader
-	out    *bufio.Writer
-
-	written int64
-	read    int64
-	last    byte
-
-	// can be negative
-	writtenCommas int64
-
-	log *log.Logger
-}
-
-func (f *Fixer) WriteByte(b byte) error {
-	f.log.Printf("write %c", b)
-	err := f.out.WriteByte(b)
-	if err != nil {
-		return err
-	}
-	f.written += 1
-	return nil
-}
-
-func (f *Fixer) Write(b []byte) error {
-	f.log.Printf("write %d", b)
-	n, err := f.out.Write(b)
-	if err != nil {
-		return err
-	}
-	f.written += int64(n)
-	return nil
-}
-
-func (f *Fixer) ReadByte() (byte, error) {
-	b, err := f.in.ReadByte()
-	f.log.Printf("read %c (%s)", b, err)
-	if err != nil {
-		return 0, err
-	}
-	f.read++
-	return b, nil
-}
-
-func (f *Fixer) UnreadByte() error {
-	err := f.in.UnreadByte()
-	f.log.Printf("unread (%s)", err)
-	if err != nil {
-		return err
-	}
-	f.read--
-	return nil
-}
-
-func (f *Fixer) ReadBytes(delim byte) ([]byte, error) {
-	b, err := f.in.ReadBytes(delim)
-	f.log.Printf("read %q (%d) (%s)", b, len(b), err)
-	if err != nil {
-		return nil, err
-	}
-	f.read += int64(len(b))
-	return b, nil
-}
-
-// consumeString reads the entire string and writes it to out, untouched.
-// It handles backslashes (\")
-func (f *Fixer) consumeString() error {
-	var bytes []byte
-	var err error
-
-	for len(bytes) == 0 || (len(bytes) >= 2 && bytes[len(bytes)-2] == '\\') {
-		bytes, err = f.ReadBytes('"')
-		if !f.config.DiffMode {
-			if err := f.Write(bytes); err != nil {
-				return err
-			}
-		}
-		if f.log != nil {
-			f.log.Printf("consume string: %#q", bytes)
-		}
-		if err != nil {
-			return err
-		}
-	}
-	if err := f.insertComma('"'); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (f *Fixer) consumeComment() error {
-	var bytes []byte
-	var err error
-
-	// FIXME: better handling of different line endings
-	bytes, err = f.ReadBytes('\n')
-	if !f.config.DiffMode {
-		f.log.Printf("writing comment")
-		if err := f.Write(bytes); err != nil {
-			return err
-		}
-	}
-	if f.log != nil {
-		f.log.Printf("consume comment: %#q", bytes)
-	}
-	if err != nil {
-		return err
-	}
-	return nil
-
-}
-
-func isPotentialStart(b byte) bool {
-	// f for false, t for true, n for null
-	return isStartPunctuation(b) || (b >= '0' && b <= '9') || b == 'f' || b == 't' || b == 'n'
-}
-
-func isStartPunctuation(b byte) bool {
-	// f for false, t for true, n for null
-	return b == '"' || b == '{' || b == '['
-}
-
-func isPotentialEnd(b byte) bool {
-	return isEndPunctuation(b) || (b >= '0' && b <= '9') || b == 'e' || b == 'l'
-}
-
-func isEndPunctuation(b byte) bool {
-	// this is a bit dodgy. the 'e' is for false and true, the 'l' is for null
-	return b == '"' || b == '}' || b == ']'
-}
-
-func (f *Fixer) insertComma(last byte) (returnerr error) {
-	// last is the last non-whitespace byte
-	if !isPotentialEnd(last) {
-		return nil
-	}
-
-	// we can't peek, because we can only peek n bytes where n < buffer size
-	// so if someone has a really long comment, then this will break
-	// so, we read into a buffer *without writting to f.out*, and if we detect
-	// that we need to insert a comma, then we f.out.Write and *then* f.out.Write
-	// the buffer
-
-	var bytesRead bytes.Buffer
-	var next byte = ' '
-
-	// make sure we always write whatever we read to f.out
-	defer func() {
-		// if we encounter an error in this block, then it overwrites the
-		// error returned (set returnerr)
-
-		// FIXME: this isn't the best. If we are in diff mode, we should just
-		// not write to bytesRead...
-		if f.config.DiffMode {
-			return
-		}
-
-		shouldWrite := int64(bytesRead.Len())
-		written, err := f.out.ReadFrom(&bytesRead)
-		if err != nil {
-			if f.log != nil {
-				f.log.Printf("overwriting error: %s", err)
-			}
-			returnerr = fmt.Errorf("writing from internal buffer: %s", err)
-		}
-		if written != shouldWrite {
-			if f.log != nil {
-				f.log.Printf("overwriting error: %s", err)
-			}
-			returnerr = fmt.Errorf("writing from internal buffer: wrote %d bytes, expected %d", written, shouldWrite)
-		}
-		f.written += written
-	}()
-
-	// here, we have to ignore spaces and comments, in a loop because you can
-	// have whitespace, comment, whitespace, comment, etc...
-
-	// we also need to make sure we have at least one space between
-	// the last and the nextSignificant (otherwise 60 would
-	// result in 6,0)
-	spacesFound := 0
-	for {
-		for {
-			b, err := f.ReadByte()
-			if err != nil {
-				return err
-			}
-			next = b
-			if !unicode.IsSpace(rune(next)) {
-				if err := f.UnreadByte(); err != nil {
-					return fmt.Errorf("unreading byte: %s", err)
-				}
-				break
-			}
-			if f.log != nil {
-				f.log.Printf("space read: '%q'", []byte{b})
-			}
-			if err := bytesRead.WriteByte(b); err != nil {
-				return fmt.Errorf("writting to internal buffer: %s", err)
-			}
-			spacesFound += 1
-		}
-		if next != '/' {
-			break
-		}
-		peek, err := f.in.Peek(1)
-		if err != nil {
-			return err
-		}
-		if peek[0] != '/' {
-			// we don't actually have a comment
-			break
-		}
-
-		// consume the comment
-		// we can't use consumeComment, because it writes to the buffer
-		bytes, readerr := f.ReadBytes('\n')
-
-		// make sure we write all the bytes we read, even if there is an error
-		written, writeerr := bytesRead.Write(bytes)
-		if writeerr != nil {
-			return fmt.Errorf("writing to internal buffer: %s", writeerr)
-		}
-		if readerr != nil {
-			return readerr
-		}
-		if written != len(bytes) {
-			return fmt.Errorf("writing to internal buffer: wrote %d bytes, expected %d", written, len(bytes))
-		}
-
-	}
-
-	// this is the magic. We insert a comma if any of those conditions are fulfilled
-
-	// - we are between an end punctuation and a some potential start
-	//     eg ...lue1""val... (last = " and next = ")
-	//     eg ...lue1"true (last = " and next = t)
-	addComma := isEndPunctuation(last) && isPotentialStart(next)
-
-	// - we are between a potential end and a potential start AND THERE IS AT LEAST A SPACE
-	//     eg 123 456 (last = 3 and next = 4).
-	//     we need the space because otherwise 123 would be splited into 1,2,3
-	addComma = addComma || (isPotentialEnd(last) && spacesFound >= 1 && isPotentialStart(next))
-
-	if addComma {
-		if f.config.DiffMode {
-			n, err := fmt.Fprintf(f.out, "%d+\n", f.writtenCommas+f.read)
-			if err != nil {
-				return fmt.Errorf("writing instruction: %s", err)
-			}
-			f.written += int64(n)
-			f.writtenCommas++
-		} else {
-			f.WriteByte(',')
-		}
-	}
-
-	return nil
-}
-
-func (f *Fixer) Fix() error {
-
-	var prev, b byte
-	var err error
-
-	for {
-		prev = b
-		b, err = f.ReadByte()
-		if err != nil {
-			return err
-		}
-
-		if f.log != nil {
-			f.log.Printf("regular read: '%q'", []byte{b})
-		}
-
-		// we don't never write commas because they were given.
-		// we explicitely say where we want a comma (see insertComma)
-		if b != ',' {
-			if !f.config.DiffMode {
-				if err := f.WriteByte(b); err != nil {
-					return err
-				}
-			}
-		} else {
-
-		}
-
-		if b == '"' {
-			if err := f.consumeString(); err != nil {
-				return err
-			}
-		} else if b == '/' {
-			next, err := f.in.Peek(1)
-			if err != nil {
-				return err
-			}
-
-			if next[0] == '/' {
-				if err := f.consumeComment(); err != nil {
-					return err
-				}
-			}
-
-			// otherwise, don't do anything. We just peeked at the next
-			// character, it's going to be consumed automatically
-			// by something else
-		} else {
-
-			// jump through some stupid hoops just to detect whether
-			// a commas was inserted or not
-			commaCount := f.writtenCommas
-			isComma := b == ','
-			if isComma {
-				b = prev
-
-			}
-			if err := f.insertComma(b); err != nil {
-				return err
-			}
-
-			// didn't insert a comma, but there was one in the original (ie. we removed it)
-			if f.config.DiffMode && isComma && commaCount == f.writtenCommas {
-				n, err := fmt.Fprintf(f.out, "%d-\n", f.read+f.writtenCommas)
-				if err != nil {
-					return fmt.Errorf("writing instruction: %s", err)
-				}
-				f.written += int64(n)
-				f.writtenCommas--
-			}
-
-		}
-
-	}
-}
-
-// written returns the number of bytes written
-func (f *Fixer) Written() int64 {
-	return f.written
-}
-
-// Read returns the number of bytes read
-func (f *Fixer) Read() int64 {
-	return f.read
-}
-
-func (f *Fixer) Flush() error {
-	return f.out.Flush()
-}
-
-var readersPool = sync.Pool{
-	New: func() interface{} {
-		return bufio.NewReader(nil)
-	},
-}
-var writersPool = sync.Pool{
-	New: func() interface{} {
-		return bufio.NewWriter(nil)
-	},
 }
 
 // Fix writes everything from in to out, just adding commas where needed
@@ -450,4 +80,162 @@ func Fix(config *Config, in io.Reader, out io.Writer) (int64, int64, error) {
 		return read, written, err
 	}
 	return read, written, f.Flush()
+}
+
+func (f *Fixer) Fix() error {
+	for {
+		current, err := f.ReadByte()
+		if err != nil {
+			return err
+		}
+
+		if current == '/' {
+			peek, err := f.in.Peek(1)
+			if err != nil {
+				return err
+			}
+			if peek[0] == '/' {
+				_, err := f.ReadBytes('\n')
+				if err != nil {
+					return err
+				}
+				continue
+			}
+		}
+
+		if current == '"' {
+			for {
+				buf, err := f.ReadBytes('"')
+				if err != nil {
+					return err
+				}
+				if len(buf) < 1 {
+					panic("assertion error: should have at least the end quote in buf")
+				}
+				if len(buf) < 2 || buf[len(buf)-2] != '\\' {
+					break
+				}
+			}
+
+			// set current = '"' (it's already the case)
+		}
+
+		if !isPotentialEnd(current) {
+			continue
+		}
+
+		if f.log != nil {
+			f.log.Printf("potential end %q", current)
+		}
+
+		lastSignificant := current
+
+		// the number of bytes read
+		offset := f.read + f.commasWritten
+
+		atLeastOneSpace := false
+		isComma := false
+		onlyHadSpaceOrComment := false
+		peek := -1
+
+		// consume every comment and whitespace to check if the next character is an end
+
+		for {
+			b, err := f.ReadByte()
+			if err != nil {
+				return err
+			}
+
+			if b == '/' {
+				peek, err := f.in.Peek(1)
+				if err != nil {
+					return err
+				}
+				// consume the comment
+				if peek[0] == '/' {
+					atLeastOneSpace = true
+					_, err := f.ReadBytes('\n')
+					if err != nil {
+						return err
+					}
+					// ignore the rest of the loop because every check is going to fail anyway,
+					// b == '/'
+					continue
+				} else {
+					// it's not a comment, this / is breaking (we only accept whitespace and comments)
+					onlyHadSpaceOrComment = false
+					break // here we also want to continue the outer loop
+				}
+			}
+			if b == ',' {
+				isComma = true
+			} else if !unicode.IsSpace(rune(b)) {
+				// we don't know what this byte is. We know it's not a space or a comment,
+				// but we shouldn't consume it
+				if err := f.UnreadByte(); err != nil {
+					return err
+				}
+				// next is kind of like a peek.
+				peek = int(b)
+				break
+			}
+
+			atLeastOneSpace = true
+			onlyHadSpaceOrComment = true
+
+		}
+
+		if !onlyHadSpaceOrComment {
+			if f.log != nil {
+				f.log.Printf("didn't only have space or comments, skip")
+			}
+			continue
+		}
+
+		if peek == -1 {
+			panic("assertion error: next wasn't populated (-1)")
+		}
+
+		next := byte(peek)
+		// we should only get here if the text between is lastSignificant and current is space/comments or nothing
+
+		// this is the magic. We insert a comma if any of those conditions are fulfilled
+
+		// - we are between an end punctuation and a some potential start
+		//     eg ...lue1""val... (last = " and next = ")
+		//     eg ...lue1"true (last = " and next = t)
+		endStart := isEndPunctuation(lastSignificant) && isPotentialStart(next)
+
+		// - we are between a potential end and a potential start AND THERE IS AT LEAST A SPACE
+		//     eg 123 456 (last = 3 and next = 4).
+		//     we need the space because otherwise 123 would be splited into 1,2,3
+		endSpaceStart := (isPotentialEnd(lastSignificant) && atLeastOneSpace && isPotentialStart(next))
+
+		addComma := endStart || endSpaceStart
+
+		if isComma && !addComma {
+			if f.log != nil {
+				f.log.Printf("remove comma at %d (end-start: %t end-space-start: %t) last: %c next: %c", offset, endStart, endSpaceStart, lastSignificant, next)
+			}
+			written, err := fmt.Fprintf(f.out, "%d-\n", offset)
+			if err != nil {
+				return err
+			}
+			f.written += int64(written)
+			f.commasWritten--
+		} else if !isComma && addComma {
+			if f.log != nil {
+				f.log.Printf("add comma at %d (end-start: %t end-space-start: %t) last: %c next: %c", offset, endStart, endSpaceStart, lastSignificant, next)
+			}
+			written, err := fmt.Fprintf(f.out, "%d+\n", offset)
+			if err != nil {
+				return err
+			}
+			f.written += int64(written)
+			f.commasWritten++
+		} else {
+			f.log.Printf("no change needed %d (isComma: %t addComma: %t) last: %c current: %c", offset, isComma, addComma, lastSignificant, current)
+		}
+
+	}
 }

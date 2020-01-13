@@ -195,10 +195,10 @@ func TestDiffMode(t *testing.T) {
 	t.Logf("read %d bytes", read)
 	t.Logf("wrote %d bytes", written)
 	if read != int64(len(input)) {
-		t.Errorf("n (%d) != len(input) (%d)", read, len(input))
+		t.Errorf("bytes read (%d) != len(input) (%d)", read, len(input))
 	}
 	if written != int64(actual.Len()) {
-		t.Errorf("n (%d) != len(output) (%d)", written, actual.Len())
+		t.Errorf("bytes written (%d) != len(output) (%d)", written, actual.Len())
 	}
 
 	actualBytes := actual.Bytes()
