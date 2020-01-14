@@ -25,16 +25,6 @@ func main() {
 		log.Fatalf("getting os.stdin stat: %s", err)
 	}
 
-	// there is stuff if stdin
-	if stat.Mode()&os.ModeCharDevice == 0 {
-		if len(os.Args) > 1 {
-			log.Fatal("can't handle arguments when piping from stdin")
-		}
-		if _, err := jsoncomma.Fix(&jsoncomma.Config{}, os.Stdin, os.Stdout); err != nil {
-			log.Fatal(err)
-		}
-		return
-	}
 
 	serverCmd := flag.NewFlagSet("server", flag.ExitOnError)
 	serverHost := serverCmd.String("host", "localhost", "Address to bind the server to. \nIf empty, it binds to every interface.")
@@ -55,7 +45,19 @@ func main() {
 	}
 
 	if len(os.Args) == 1 {
-		flag.Usage()
+		// try to see if there is some stuff in stdin
+		if stat.Mode()&os.ModeCharDevice == 0 {
+			if len(os.Args) > 1 {
+				log.Fatal("can't handle arguments when piping from stdin")
+			}
+			if _, err := jsoncomma.Fix(&jsoncomma.Config{}, os.Stdin, os.Stdout); err != nil {
+				log.Fatal(err)
+			}
+			return
+		} else {
+			// print the help
+			flag.Usage()
+		}
 		return
 	}
 
@@ -68,6 +70,7 @@ func main() {
 		}
 		return
 	}
+
 
 	// file/folder names only
 	if err := fix(flag.Args(), *tostdout); err != nil {
