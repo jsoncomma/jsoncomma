@@ -16,15 +16,12 @@ import (
 	jsoncomma "github.com/jsoncomma/jsoncomma/internals"
 )
 
+// meta data about the build
+var version = "<not specified>"
+var commit = "<not specified>"
+var date = "<not specified>"
+
 func main() {
-
-	// try to read from stdin
-
-	stat, err := os.Stdin.Stat()
-	if err != nil {
-		log.Fatalf("getting os.stdin stat: %s", err)
-	}
-
 
 	serverCmd := flag.NewFlagSet("server", flag.ExitOnError)
 	serverHost := serverCmd.String("host", "localhost", "Address to bind the server to. \nIf empty, it binds to every interface.")
@@ -38,14 +35,31 @@ func main() {
 	}
 
 	tostdout := flag.Bool("stdout", false, "write to stdout instead of in place")
+	printVersion := flag.Bool("version", false, "print the version and exits")
 
 	flag.Usage = func() {
-		fmt.Fprintln(flag.CommandLine.Output(), "$ jsoncomma files...    Fixes all the files")
 		fmt.Fprintln(flag.CommandLine.Output(), "$ jsoncomma server      Starts the optimized server (server -help for more details)")
+		fmt.Fprintln(flag.CommandLine.Output(), "$ jsoncomma files...    Fixes all the files")
+		flag.PrintDefaults()
 	}
 
-	if len(os.Args) == 1 {
+	flag.Parse()
+
+	if *printVersion {
+		fmt.Println(version, commit, date)
+		os.Exit(0)
+	}
+
+	if flag.NArg() == 0 {
 		// try to see if there is some stuff in stdin
+
+		// try to read from stdin
+
+		stat, err := os.Stdin.Stat()
+		if err != nil {
+			log.Fatalf("getting os.stdin stat: %s", err)
+		}
+
 		if stat.Mode()&os.ModeCharDevice == 0 {
 			if len(os.Args) > 1 {
 				log.Fatal("can't handle arguments when piping from stdin")
@@ -61,7 +75,6 @@ func main() {
 		return
 	}
 
-	flag.Parse()
 
 	if os.Args[1] == "server" {
 		serverCmd.Parse(os.Args[2:])
