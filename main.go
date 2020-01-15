@@ -305,7 +305,7 @@ func serve(host string, port int) error {
 		}
 	} else {
 		if err := encoder.Encode(kv{
-			"kind": "stoped",
+			"kind": "stopped",
 		}); err != nil {
 			return err
 		}
