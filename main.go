@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	jsoncomma "github.com/jsoncomma/jsoncomma/internals"
 )
@@ -75,7 +77,6 @@ func main() {
 		return
 	}
 
-
 	if os.Args[1] == "server" {
 		serverCmd.Parse(os.Args[2:])
 		if err := serve(*serverHost, *serverPort); err != nil {
@@ -83,7 +84,6 @@ func main() {
 		}
 		return
 	}
-
 
 	// file/folder names only
 	if err := fix(flag.Args(), *tostdout); err != nil {
@@ -160,7 +160,38 @@ func fixfile(config *jsoncomma.Config, filename string) error {
 type kv map[string]interface{}
 
 func serve(host string, port int) error {
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+
+	// this server fix output send on /
+	// you can shut it down by getting /shutdown
+	// it'll send a reply with a json object {"timedout": <bool>}.
+	// if it is true, that means that the server has forcefully
+	// shutdown handlers (the timeout is 1 second)
+
+	// This is a very bad implementation. We assume that it is safe
+	// to close the handlers on the last handler instruction (wg.Done())
+	// instead of when the actual content has been written. In the
+	// case of /shutdown, it's closing the channel doneserver. In theory,
+	// the corroutine waiting on the channel to be close to shutdown
+	// the server could start off straight away, *before the /shutdown
+	// handler has even finished*. That would mean that no response is written.
+	// As a safety, I flush the data in the handler, to provide some guarantee
+	// that the client will recieve the information it expects.
+
+	router := http.NewServeMux()
+
+	server := &http.Server{
+		Handler:      router,
+		ReadTimeout:  time.Minute,
+		WriteTimeout: time.Minute,
+		IdleTimeout:  time.Minute,
+	}
+
+	// used to keep track of running handlers
+	var wg sync.WaitGroup
+
+	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		wg.Add(1)
+		defer wg.Done()
 
 		// FIXME: require X-Protocol-Version?
 
@@ -205,6 +236,43 @@ func serve(host string, port int) error {
 		return err
 	}
 
+	serverdone := make(chan struct{})
+
+	router.HandleFunc("/shutdown", func(w http.ResponseWriter, r *http.Request) {
+
+		timedout := WaitTimeout(&wg, 1*time.Second)
+		if timedout {
+			fmt.Fprintf(w, "{\"timedout\": true}\n")
+		} else {
+			fmt.Fprintf(w, "{\"timedout\": false}\n")
+		}
+
+		// panic if we are not a flusher so that the client gets a big fat error
+		// if we can't guarantee that it will get at least one time. This is just
+		// to make sure that no client blocks.
+		w.(http.Flusher).Flush()
+
+		close(serverdone)
+	})
+
+	go func() {
+		// I don't know how to guarantee that this will only run once *every* handler
+		// has finished. This solution isn't theoratically correct, because this could
+		// run as soon as close(serverdone) is called (which is *within* the handler,
+		// hence it is not done). In practice, this seems to always work out because
+		// it takes the time of concurrent "jump" to close the handler (ie. the handler
+		// has enough time to be closed before we get here)
+		<-serverdone
+		ctx, cancel := context.WithTimeout(context.Background(), 1 * time.Second)
+		defer cancel()
+		if err := server.Shutdown(ctx); err != nil {
+			log.Printf("shutting down server: %s", err)
+			if err := server.Close(); err != nil {
+				log.Printf("closing server: %s", err)
+			}
+		}
+	}()
+
 	// output in JSON just to make it easy to parse
 	enc := json.NewEncoder(os.Stdout)
 	addr := listener.Addr().(*net.TCPAddr)
@@ -213,7 +281,13 @@ func serve(host string, port int) error {
 		"host": addr.IP,
 		"port": addr.Port,
 	})
-	return http.Serve(listener, nil)
+
+
+	if err := server.Serve(listener); err != http.ErrServerClosed {
+		return err
+	}
+
+	return nil
 }
 
 func respondJSON(w http.ResponseWriter, code int, obj kv) {
@@ -236,4 +310,26 @@ func localtest() {
 	}`)
 
 	fmt.Println(jsoncomma.Fix(&jsoncomma.Config{}, reader, os.Stdout))
+}
+
+// WaitTimeout waits for wg to be done, and takes at most timeout time.
+// returns true if it was due to timeout
+func WaitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		done <- struct{}{}
+	}()
+
+	timer := time.NewTimer(timeout)
+
+	select {
+	case <-timer.C:
+		return true
+	case <-done:
+		if !timer.Stop() {
+			<-timer.C
+		}
+		return false
+	}
 }

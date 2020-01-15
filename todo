@@ -2,3 +2,4 @@
 - embed logo into HTML
 - generate random.json from seed
 - add initial corpus to fuzz
+- check that shutting down "gracefully" does work (have a slow writer and close in parallel)
