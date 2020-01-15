@@ -177,6 +177,9 @@ func serve(host string, port int) error {
 	// As a safety, I flush the data in the handler, to provide some guarantee
 	// that the client will recieve the information it expects.
 
+	// this command should try to only output JSON to stdout
+	encoder := json.NewEncoder(os.Stdout)
+
 	router := http.NewServeMux()
 
 	server := &http.Server{
@@ -233,7 +236,15 @@ func serve(host string, port int) error {
 
 	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
-		return err
+		if err := encoder.Encode(kv{
+			"kind": "error",
+			"context": "opening socket",
+			"error": err.Error(), 
+			"details": err,
+		}); err != nil {
+			return err
+		}
+		return nil
 	}
 
 	serverdone := make(chan struct{})
@@ -263,7 +274,7 @@ func serve(host string, port int) error {
 		// it takes the time of concurrent "jump" to close the handler (ie. the handler
 		// has enough time to be closed before we get here)
 		<-serverdone
-		ctx, cancel := context.WithTimeout(context.Background(), 1 * time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 		if err := server.Shutdown(ctx); err != nil {
 			log.Printf("shutting down server: %s", err)
@@ -273,18 +284,31 @@ func serve(host string, port int) error {
 		}
 	}()
 
-	// output in JSON just to make it easy to parse
-	enc := json.NewEncoder(os.Stdout)
 	addr := listener.Addr().(*net.TCPAddr)
-	enc.Encode(kv{
+	if err := encoder.Encode(kv{
+		"kind": "started",
 		"addr": addr.String(),
 		"host": addr.IP,
 		"port": addr.Port,
-	})
-
+	}); err != nil {
+		return err
+	}
 
 	if err := server.Serve(listener); err != http.ErrServerClosed {
-		return err
+		if err := encoder.Encode(kv{
+			"kind":    "error",
+			"context": "serving",
+			"error":   err.Error(),
+			"details": err,
+		}); err != nil {
+			return err
+		}
+	} else {
+		if err := encoder.Encode(kv{
+			"kind": "stoped",
+		}); err != nil {
+			return err
+		}
 	}
 
 	return nil
