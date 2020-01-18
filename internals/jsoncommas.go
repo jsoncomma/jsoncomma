@@ -169,26 +169,32 @@ func (f *Fixer) insertComma(last byte) (returnerr error) {
 	// result in 6,0)
 	spacesFound := 0
 	for {
+
+		// the loop here consumes all the spaces
 		for {
 			b, err := f.in.ReadByte()
 			if err != nil {
 				return err
 			}
 			next = b
-			if !unicode.IsSpace(rune(next)) {
+
+			if !unicode.IsSpace(rune(next)) && next != ',' {
 				if err := f.in.UnreadByte(); err != nil {
 					return fmt.Errorf("unreading byte: %s", err)
 				}
 				break
 			}
 			if f.log != nil {
-				f.log.Printf("space read: '%q'", []byte{b})
+				f.log.Printf("space read/comma: '%q'", []byte{next})
 			}
-			if err := bytesRead.WriteByte(b); err != nil {
-				return fmt.Errorf("writting to internal buffer: %s", err)
+			if next != ',' {
+				if err := bytesRead.WriteByte(next); err != nil {
+					return fmt.Errorf("writting to internal buffer: %s", err)
+				}
 			}
 			spacesFound += 1
 		}
+
 		if next != '/' {
 			break
 		}

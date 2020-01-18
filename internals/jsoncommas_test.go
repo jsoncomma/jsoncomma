@@ -98,11 +98,10 @@ func TestAddCommas(t *testing.T) {
 			in:  `[true true 123 false true,]`,
 			out: `[true, true, 123, false, true]`,
 		},
-		// this test fails! fix it
-		// {
-		// 	in:  `[1 2 3,4,5,6,7, [2, 3, 4],]`,
-		// 	out: `[1, 2, 3,4,5,6,7, [2, 3, 4]]`,
-		// },
+		{
+			in:  `[1 2 3,4,5,6,7, [2, 3, 4],]`,
+			out: `[1, 2, 3,4,5,6,7, [2, 3, 4]]`,
+		},
 		{
 			in:  `{"hello\\": "world", "this": "is what?", "a": "test", }`,
 			out: `{"hello\\": "world", "this": "is what?", "a": "test" }`,
