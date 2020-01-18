@@ -140,20 +140,32 @@ func TestAddCommas(t *testing.T) {
 			t.Parallel()
 			var logs bytes.Buffer
 
-			config := &jsoncomma.Config{
-				Logs: &logs,
-			}
-
 			var actual bytes.Buffer
 			actual.Grow(len(row.out))
 
-			written, err := jsoncomma.Fix(config, strings.NewReader(row.in), &actual)
+			var actualNoLogs bytes.Buffer
+			actual.Grow(len(row.out))
+
+			written, err := jsoncomma.Fix(&jsoncomma.Config{&logs}, strings.NewReader(row.in), &actual)
 			if err != nil {
-				t.Errorf("in: %#q, err: %s", row.in, err)
+				t.Fatalf("in: %#q, err: %s", row.in, err)
+			}
+			writtenNoLogs, err := jsoncomma.Fix(&jsoncomma.Config{}, strings.NewReader(row.in), &actualNoLogs)
+			if err != nil {
+				t.Fatalf("in: %#q, err: %s, only got error *without* the logs", row.in, err)
 			}
 			t.Logf("logs\n%s", logs.String())
 
+			if written != writtenNoLogs {
+				t.Errorf("in: %#q, written (%d) != writtenNoLogs (%d)", row.in, written, writtenNoLogs)
+			}
+
 			actualString := actual.String()
+			actualNoLogsString := actualNoLogs.String()
+			if actualString != actualNoLogsString {
+				t.Errorf("in: %#q, output no logs != with logs:\nwith logs: %#qno logs  : %#q", row.in, actualString, actualNoLogsString)
+			}
+
 			if int64(len(actualString)) != written {
 				t.Errorf("in: %#q, output: %#q (%d bytes), yet written %d bytes", row.in, actualString, len(actualString), written)
 			}
