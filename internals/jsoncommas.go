@@ -67,15 +67,18 @@ func (f *Fixer) consumeString() error {
 		backslashCount := 0
 		for {
 			if len(bytes) - backslashCount - 2 < 0 || bytes[len(bytes) - backslashCount - 2] != '\\' {
-				f.log.Printf("break")
+				if f.log != nil {
+					f.log.Printf("break")
+				}
 				break
 			}
 			backslashCount++
 		}
 		// if it's even, then that means that the quote isn't escaped
 		if backslashCount % 2 == 0 {
-			// f.log.Printf("%q", bytes[len(bytes) - 2])
-			f.log.Printf("break with: %#q (count: %d)", bytes, backslashCount)
+			if f.log != nil {
+				f.log.Printf("break with: %#q (count: %d)", bytes, backslashCount)
+			}
 			break
 		}
 	}
