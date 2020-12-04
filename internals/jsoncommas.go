@@ -307,7 +307,11 @@ func (f *Fixer) Flush() error {
 
 var readersPool = sync.Pool{
 	New: func() interface{} {
-		return bufio.NewReader(nil)
+		// TODO: add this max-size as user setting for plugins
+		// or calculate needed buffer-size by parsing the request body firts
+		// I'm a total noob in Go so I dont know how to pass the buffersize to here...
+		return bufio.NewReaderSize(nil,15000) // increase max buffer size
+		// the standard max buffer size depends on the OS but was found to be 4096 bytes in my case
 	},
 }
 var writersPool = sync.Pool{

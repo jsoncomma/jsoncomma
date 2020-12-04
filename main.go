@@ -229,6 +229,19 @@ func serve(host string, port int) error {
 		w.WriteHeader(http.StatusOK)
 
 		defer r.Body.Close()
+
+		// read the whole body
+		// return nil for the error when EOF is found
+		body, err := ioutil.ReadAll(r.Body)
+        if err != nil {
+            log.Printf("Error found in parsing the body: %s", err)
+        }
+        // TODO: use this bodysize to define write buffer accordingly
+        //bodysize := len(body)
+
+        // recreate original request-body for usage in jscomma.Fix
+		r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+
 		if _, err := jsoncomma.Fix(conf, r.Body, w); err != nil {
 			log.Printf("fixing: %s", err)
 		}
@@ -239,7 +252,7 @@ func serve(host string, port int) error {
 		if err := encoder.Encode(kv{
 			"kind": "error",
 			"context": "opening socket",
-			"error": err.Error(), 
+			"error": err.Error(),
 			"details": err,
 		}); err != nil {
 			return err
