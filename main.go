@@ -228,8 +228,14 @@ func serve(host string, port int) error {
 		w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 
+		content, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			panic(err)
+		}
+		body := bytes.NewReader(content)
+
 		defer r.Body.Close()
-		if _, err := jsoncomma.Fix(conf, r.Body, w); err != nil {
+		if _, err := jsoncomma.Fix(conf, body, w); err != nil {
 			log.Printf("fixing: %s", err)
 		}
 	})
@@ -239,7 +245,7 @@ func serve(host string, port int) error {
 		if err := encoder.Encode(kv{
 			"kind": "error",
 			"context": "opening socket",
-			"error": err.Error(), 
+			"error": err.Error(),
 			"details": err,
 		}); err != nil {
 			return err
